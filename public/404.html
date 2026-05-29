@@ -1,0 +1,144 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Page Not Found | LineaTree PWA</title>
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <style>
+      :root {
+        --bg-color: #21252B;
+        --card-bg: rgba(40, 44, 52, 0.75);
+        --text-primary: #ABB2BF;
+        --color-primary: #61AFEF;
+        --color-danger: #E06C75;
+      }
+      * {
+        box-sizing: border-box;
+        margin: 0;
+        padding: 0;
+      }
+      body {
+        background: var(--bg-color);
+        color: var(--text-primary);
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+        height: 100vh;
+        width: 100vw;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        overflow: hidden;
+        perspective: 1000px;
+      }
+      .glow-bg {
+        position: absolute;
+        width: 300px;
+        height: 300px;
+        border-radius: 50%;
+        background: radial-gradient(circle, rgba(97, 175, 239, 0.15) 0%, transparent 70%);
+        filter: blur(40px);
+        z-index: 1;
+      }
+      .card {
+        background: var(--card-bg);
+        border: 1px solid rgba(255, 255, 255, 0.08);
+        border-radius: 20px;
+        backdrop-filter: blur(16px);
+        -webkit-backdrop-filter: blur(16px);
+        padding: 40px;
+        width: 90%;
+        max-width: 440px;
+        text-align: center;
+        box-shadow: 0 20px 50px rgba(0, 0, 0, 0.45);
+        z-index: 10;
+        animation: cardSpawn 0.7s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards;
+      }
+      @keyframes cardSpawn {
+        from {
+          opacity: 0;
+          transform: translateY(30px) rotateX(-10deg);
+        }
+        to {
+          opacity: 1;
+          transform: translateY(0) rotateX(0deg);
+        }
+      }
+      .code {
+        font-size: 80px;
+        font-weight: 900;
+        color: var(--color-danger);
+        letter-spacing: -2px;
+        text-shadow: 0 0 20px rgba(224, 108, 117, 0.25);
+        margin-bottom: 8px;
+        line-height: 1;
+      }
+      .title {
+        font-size: 16px;
+        font-weight: 800;
+        letter-spacing: 0.1em;
+        text-transform: uppercase;
+        color: var(--color-primary);
+        margin-bottom: 16px;
+      }
+      .desc {
+        font-size: 13px;
+        line-height: 1.6;
+        color: rgba(171, 178, 191, 0.7);
+        margin-bottom: 28px;
+      }
+      .btn {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: 8px;
+        padding: 12px 24px;
+        border-radius: 10px;
+        background: var(--color-primary);
+        color: #1E222B;
+        text-decoration: none;
+        font-weight: bold;
+        font-size: 13px;
+        border: none;
+        cursor: pointer;
+        transition: all 0.2s;
+        box-shadow: 0 4px 12px rgba(97, 175, 239, 0.2);
+      }
+      .btn:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 6px 20px rgba(97, 175, 239, 0.35);
+        background: #75baff;
+      }
+      .countdown {
+        font-size: 10px;
+        color: rgba(171, 178, 191, 0.45);
+        margin-top: 20px;
+        font-family: monospace;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="glow-bg"></div>
+    <div class="card">
+      <div class="code">404</div>
+      <h1 class="title">COHORT RESOLUTION FAILURE</h1>
+      <p class="desc">
+        The coordinate path you requested does not map to any active pedigree nodes in this offline schema. You will be automatically redirected to the secure workspace home.
+      </p>
+      <a href="/" class="btn">Return to Portal ←</a>
+      <div id="counter" class="countdown">REDIRECTING IN 5 SECONDS...</div>
+    </div>
+
+    <script>
+      let secs = 5;
+      const countEl = document.getElementById('counter');
+      const interval = setInterval(() => {
+        secs--;
+        countEl.textContent = `REDIRECTING IN ${secs} SECONDS...`;
+        if (secs <= 0) {
+          clearInterval(interval);
+          window.location.href = '/';
+        }
+      }, 1000);
+    </script>
+  </body>
+</html>

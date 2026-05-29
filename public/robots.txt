@@ -1,0 +1,11 @@
+# Robots.txt for LineaTree Progressive Web Application
+# https://github.com/familytreeapp/lineatree
+
+User-agent: *
+Allow: /
+Disallow: /dist/
+Disallow: /node_modules/
+Disallow: /src/
+
+# Host configuration
+Host: https://lineatree.app
