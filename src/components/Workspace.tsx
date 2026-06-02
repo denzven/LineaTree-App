@@ -233,36 +233,44 @@ export const Workspace: React.FC<WorkspaceProps> = ({
     const root = document.documentElement;
     if (theme === 'ONE_DARK') {
       root.style.setProperty('--bg-primary', '#181A1F');
+      root.style.setProperty('--bg-secondary', '#21252B');
       root.style.setProperty('--color-primary', '#4CB2FF');
       root.style.setProperty('--color-secondary', '#D75BF7');
       root.style.setProperty('--color-success', '#87D37C');
       root.style.setProperty('--color-warning', '#F3B43F');
       root.style.setProperty('--color-danger', '#FF6166');
       root.style.setProperty('--color-alternative', '#4DD2DF');
+      root.style.setProperty('--text-contrast-dark', '#1E222B');
     } else if (theme === 'CHARCOAL') {
       root.style.setProperty('--bg-primary', '#121212');
+      root.style.setProperty('--bg-secondary', '#1E1E1E');
       root.style.setProperty('--color-primary', '#9E9E9E');
       root.style.setProperty('--color-secondary', '#757575');
       root.style.setProperty('--color-success', '#689F38');
       root.style.setProperty('--color-warning', '#F57C00');
       root.style.setProperty('--color-danger', '#D32F2F');
       root.style.setProperty('--color-alternative', '#0097A7');
+      root.style.setProperty('--text-contrast-dark', '#121212');
     } else if (theme === 'SLATE') {
       root.style.setProperty('--bg-primary', '#1E2530');
+      root.style.setProperty('--bg-secondary', '#263238');
       root.style.setProperty('--color-primary', '#607D8B');
       root.style.setProperty('--color-secondary', '#90A4AE');
       root.style.setProperty('--color-success', '#4CAF50');
       root.style.setProperty('--color-warning', '#FF9800');
       root.style.setProperty('--color-danger', '#F44336');
       root.style.setProperty('--color-alternative', '#00BCD4');
+      root.style.setProperty('--text-contrast-dark', '#1E2530');
     } else if (theme === 'MATRIX') {
       root.style.setProperty('--bg-primary', '#000000');
+      root.style.setProperty('--bg-secondary', '#0D0D0D');
       root.style.setProperty('--color-primary', '#00FF00');
       root.style.setProperty('--color-secondary', '#00DD00');
       root.style.setProperty('--color-success', '#00FF00');
       root.style.setProperty('--color-warning', '#A5D6A7');
       root.style.setProperty('--color-danger', '#FF1744');
       root.style.setProperty('--color-alternative', '#00E676');
+      root.style.setProperty('--text-contrast-dark', '#000000');
     }
     localStorage.setItem('ui_theme', theme);
   }, [theme]);

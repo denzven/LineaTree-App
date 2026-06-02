@@ -11,6 +11,7 @@
   --color-primary: #4CB2FF;
   --color-secondary: #D75BF7;
   --color-alternative: #4DD2DF;
+  --text-contrast-dark: #1E222B;
 }
 
 /* Global Reset */
@@ -167,12 +168,13 @@ input[type="range"]::-webkit-slider-thumb:hover {
   position: relative;
   z-index: 10;
   width: 100%;
-  max-width: 1000px;
+  max-width: 100%;
   display: flex;
   flex-direction: column;
   align-items: center;
   margin: auto 0;
-  overflow: visible;
+  overflow: hidden;
+  padding: 0 16px;
 }
 
 .carousel-title {
@@ -186,17 +188,23 @@ input[type="range"]::-webkit-slider-thumb:hover {
 }
 
 .carousel-viewport {
+  position: relative;
   width: 100%;
-  overflow: hidden;
+  overflow: visible;
   display: flex;
-  justify-content: center;
-  padding: 20px 0;
+  align-items: center;
+  justify-content: flex-start;
+  padding: 32px 0;
+  perspective: 1200px;
+  -webkit-perspective: 1200px;
 }
 
 .carousel-track {
   display: flex;
   gap: 24px;
-  padding: 0 40px;
+  width: max-content;
+  transform-style: preserve-3d;
+  -webkit-transform-style: preserve-3d;
 }
 
 .template-card {
@@ -212,12 +220,98 @@ input[type="range"]::-webkit-slider-thumb:hover {
   -webkit-backdrop-filter: blur(12px);
   box-shadow: 0 20px 40px rgba(0, 0, 0, 0.35);
   color: var(--text-primary);
+  transform-style: preserve-3d;
+  -webkit-transform-style: preserve-3d;
 }
 
 @media (min-width: 768px) {
   .template-card {
     width: 360px;
   }
+}
+
+/* Carousel Prev/Next Buttons */
+.carousel-control {
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  border: 1px solid rgba(171, 178, 191, 0.15);
+  background: rgba(40, 44, 52, 0.6);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  color: var(--text-primary);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  z-index: 20;
+  transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.2);
+}
+
+.carousel-control:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--color-primary) 12%, rgba(40, 44, 52, 0.8));
+  border-color: var(--color-primary);
+  color: var(--color-primary);
+  box-shadow: 0 0 16px color-mix(in srgb, var(--color-primary) 30%, transparent);
+}
+
+.carousel-control:disabled {
+  opacity: 0.2;
+  cursor: not-allowed;
+}
+
+.carousel-control.prev {
+  left: 8px;
+}
+
+.carousel-control.next {
+  right: 8px;
+}
+
+@media (min-width: 1024px) {
+  .carousel-control.prev {
+    left: 40px;
+  }
+  .carousel-control.next {
+    right: 40px;
+  }
+}
+
+/* Carousel Indicators */
+.carousel-indicators {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  margin-top: 16px;
+  margin-bottom: 24px;
+}
+
+.indicator-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--text-muted);
+  opacity: 0.5;
+  cursor: pointer;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.indicator-dot:hover {
+  opacity: 0.8;
+  background: var(--text-primary);
+}
+
+.indicator-dot.active {
+  width: 24px;
+  border-radius: 4px;
+  background: var(--color-primary);
+  opacity: 1;
+  box-shadow: 0 0 8px color-mix(in srgb, var(--color-primary) 50%, transparent);
 }
 
 .card-title {

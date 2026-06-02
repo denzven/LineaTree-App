@@ -186,7 +186,99 @@ export const BLENDED_FAMILY: SeedTemplate = {
   ]
 };
 
-export const TEMPLATES = [ROYAL_DYNASTY, MEDICAL_GENOGRAM, GREEK_MYTHOLOGY, BLENDED_FAMILY];
+export const TUDOR_DYNASTY: SeedTemplate = {
+  name: 'Tudor Dynasty Succession',
+  description: 'A historical layout tracing King Henry VIII, his six wives, and their offspring (Mary I, Elizabeth I, Edward VI) mapping royal successions, divorces, and step-parent relationships.',
+  nodes: [
+    { id: 'henry_7', type: 'INDIVIDUAL', name: 'Henry VII', sex: 'M', lifeStatus: 'DECEASED', dob: '1457-01-28', dod: '1509-04-21', job: 'King of England', company: 'House of Tudor', traits: ['Founder of Tudor', 'Lancastrian Rose'] },
+    { id: 'elizabeth_york', type: 'INDIVIDUAL', name: 'Elizabeth of York', sex: 'F', lifeStatus: 'DECEASED', dob: '1466-02-11', dod: '1503-02-11', job: 'Queen Consort', company: 'House of York', traits: ['White Rose of York'] },
+    { id: 'henry_8', type: 'INDIVIDUAL', name: 'Henry VIII', sex: 'M', lifeStatus: 'DECEASED', dob: '1491-06-28', dod: '1547-01-28', job: 'King of England', company: 'House of Tudor', traits: ['Six Wives', 'Gout', 'Royal Supremacy'] },
+    { id: 'catherine_aragon', type: 'INDIVIDUAL', name: 'Catherine of Aragon', sex: 'F', lifeStatus: 'DECEASED', dob: '1485-12-16', dod: '1536-01-07', job: 'Queen Consort', company: 'Spanish Monarchs', traits: ['Spanish Royalty', 'Devout Catholic'] },
+    { id: 'anne_boleyn', type: 'INDIVIDUAL', name: 'Anne Boleyn', sex: 'F', lifeStatus: 'DECEASED', dob: '1501-05-01', dod: '1536-05-19', job: 'Queen Consort', company: 'House of Tudor', traits: ['Executed', 'Reformist'] },
+    { id: 'jane_seymour', type: 'INDIVIDUAL', name: 'Jane Seymour', sex: 'F', lifeStatus: 'DECEASED', dob: '1508-05-01', dod: '1537-10-24', job: 'Queen Consort', company: 'House of Tudor', traits: ['Died in Childbed'] },
+    { id: 'anne_cleves', type: 'INDIVIDUAL', name: 'Anne of Cleves', sex: 'F', lifeStatus: 'DECEASED', dob: '1515-09-22', dod: '1557-07-16', job: 'Queen Consort', company: 'House of Cleves', traits: ['Annulled', 'Lucky Survivor'] },
+    { id: 'catherine_howard', type: 'INDIVIDUAL', name: 'Catherine Howard', sex: 'F', lifeStatus: 'DECEASED', dob: '1523-01-01', dod: '1542-02-13', job: 'Queen Consort', company: 'House of Tudor', traits: ['Executed', 'Youngest Wife'] },
+    { id: 'catherine_parr', type: 'INDIVIDUAL', name: 'Catherine Parr', sex: 'F', lifeStatus: 'DECEASED', dob: '1512-08-30', dod: '1548-09-05', job: 'Queen Consort', company: 'House of Tudor', traits: ['Survived Henry', 'Author'] },
+    { id: 'mary_1', type: 'INDIVIDUAL', name: 'Mary I (Bloody Mary)', sex: 'F', lifeStatus: 'DECEASED', dob: '1516-02-18', dod: '1558-11-17', job: 'Queen of England', company: 'House of Tudor', traits: ['Devout Catholic', 'Bloody Mary'] },
+    { id: 'elizabeth_1', type: 'INDIVIDUAL', name: 'Elizabeth I', sex: 'F', lifeStatus: 'DECEASED', dob: '1533-09-07', dod: '1603-03-24', job: 'Queen of England', company: 'House of Tudor', traits: ['Virgin Queen', 'Golden Age'] },
+    { id: 'edward_6', type: 'INDIVIDUAL', name: 'Edward VI', sex: 'M', lifeStatus: 'DECEASED', dob: '1537-10-12', dod: '1553-07-06', job: 'King of England', company: 'House of Tudor', traits: ['Boy King', 'Protestant Reformer', 'Tuberculosis'] }
+  ],
+  edges: [
+    { id: 'e_h7_ey_marriage', source: 'henry_7', target: 'elizabeth_york', type: 'SPOUSE' },
+    { id: 'e_h8_parent1', source: 'henry_7', target: 'henry_8', type: 'BIOLOGICAL_PARENT' },
+    { id: 'e_h8_parent2', source: 'elizabeth_york', target: 'henry_8', type: 'BIOLOGICAL_PARENT' },
+    { id: 'e_h8_catherine_aragon', source: 'henry_8', target: 'catherine_aragon', type: 'DIVORCED' },
+    { id: 'e_h8_anne_boleyn', source: 'henry_8', target: 'anne_boleyn', type: 'DIVORCED' },
+    { id: 'e_h8_jane_seymour', source: 'henry_8', target: 'jane_seymour', type: 'SPOUSE' },
+    { id: 'e_h8_anne_cleves', source: 'henry_8', target: 'anne_cleves', type: 'DIVORCED' },
+    { id: 'e_h8_catherine_howard', source: 'henry_8', target: 'catherine_howard', type: 'DIVORCED' },
+    { id: 'e_h8_catherine_parr', source: 'henry_8', target: 'catherine_parr', type: 'SPOUSE' },
+    { id: 'e_mary_p1', source: 'henry_8', target: 'mary_1', type: 'BIOLOGICAL_PARENT' },
+    { id: 'e_mary_p2', source: 'catherine_aragon', target: 'mary_1', type: 'BIOLOGICAL_PARENT' },
+    { id: 'e_elizabeth_p1', source: 'henry_8', target: 'elizabeth_1', type: 'BIOLOGICAL_PARENT' },
+    { id: 'e_elizabeth_p2', source: 'anne_boleyn', target: 'elizabeth_1', type: 'BIOLOGICAL_PARENT' },
+    { id: 'e_edward_p1', source: 'henry_8', target: 'edward_6', type: 'BIOLOGICAL_PARENT' },
+    { id: 'e_edward_p2', source: 'jane_seymour', target: 'edward_6', type: 'BIOLOGICAL_PARENT' },
+    // Step Relationships
+    { id: 'e_mary_step1', source: 'anne_boleyn', target: 'mary_1', type: 'STEP_PARENT' },
+    { id: 'e_mary_step2', source: 'jane_seymour', target: 'mary_1', type: 'STEP_PARENT' },
+    { id: 'e_mary_step3', source: 'anne_cleves', target: 'mary_1', type: 'STEP_PARENT' },
+    { id: 'e_elizabeth_step1', source: 'jane_seymour', target: 'elizabeth_1', type: 'STEP_PARENT' },
+    { id: 'e_elizabeth_step2', source: 'catherine_parr', target: 'elizabeth_1', type: 'STEP_PARENT' },
+    { id: 'e_edward_step1', source: 'catherine_parr', target: 'edward_6', type: 'STEP_PARENT' }
+  ]
+};
+
+export const WIZARDING_LINEAGE: SeedTemplate = {
+  name: 'Wizarding School Lineage',
+  description: 'A magical pedigree illustrating three generations of wizarding houses, showing complex marriages, school friend networks, and foster relations.',
+  nodes: [
+    { id: 'arthur_w', type: 'INDIVIDUAL', name: 'Arthur Weasley', sex: 'M', lifeStatus: 'ALIVE', dob: '1950-02-06', job: 'Ministry Employee', company: 'Order of the Phoenix', traits: ['Muggle Enthusiast', 'Order of the Phoenix'] },
+    { id: 'molly_w', type: 'INDIVIDUAL', name: 'Molly Weasley', sex: 'F', lifeStatus: 'ALIVE', dob: '1950-10-30', job: 'Matriarch', company: 'Order of the Phoenix', traits: ['Expert Duelist', 'Warm Heart'] },
+    { id: 'sirius_b', type: 'INDIVIDUAL', name: 'Sirius Black', sex: 'M', lifeStatus: 'DECEASED', dob: '1959-11-03', dod: '1996-06-18', job: 'Marauder', company: 'Order of the Phoenix', traits: ['Animagus', 'Azbakan Fugitive'] },
+    { id: 'harry_p', type: 'INDIVIDUAL', name: 'Harry Potter', sex: 'M', lifeStatus: 'ALIVE', dob: '1980-07-31', job: 'Head Auror', company: 'Ministry of Magic', traits: ['The Chosen One', 'Parseltongue'] },
+    { id: 'ginny_w', type: 'INDIVIDUAL', name: 'Ginny Weasley', sex: 'F', lifeStatus: 'ALIVE', dob: '1981-08-11', job: 'Sports Editor', company: 'Daily Prophet', traits: ['Chaser', 'Holyhead Harpies'] },
+    { id: 'ron_w', type: 'INDIVIDUAL', name: 'Ron Weasley', sex: 'M', lifeStatus: 'ALIVE', dob: '1980-03-01', job: 'Auror / Business Owner', company: 'Weasleys Wizard Wheezes', traits: ['Gryffindor Prefect'] },
+    { id: 'hermione_g', type: 'INDIVIDUAL', name: 'Hermione Granger', sex: 'F', lifeStatus: 'ALIVE', dob: '1979-09-19', job: 'Minister for Magic', company: 'Ministry of Magic', traits: ['Brightest Witch of Her Age'] },
+    { id: 'rose_w', type: 'INDIVIDUAL', name: 'Rose Granger-Weasley', sex: 'F', lifeStatus: 'ALIVE', dob: '2006-08-20', job: 'Student', company: 'Hogwarts', traits: ['Intellect', 'Chaser'] },
+    { id: 'hugo_w', type: 'INDIVIDUAL', name: 'Hugo Granger-Weasley', sex: 'M', lifeStatus: 'ALIVE', dob: '2008-05-15', job: 'Student', company: 'Hogwarts', traits: ['Fun-Loving'] },
+    { id: 'james_p', type: 'INDIVIDUAL', name: 'James Potter II', sex: 'M', lifeStatus: 'ALIVE', dob: '2004-11-20', job: 'Student', company: 'Hogwarts', traits: ['Mischief Maker'] },
+    { id: 'albus_p', type: 'INDIVIDUAL', name: 'Albus Potter', sex: 'M', lifeStatus: 'ALIVE', dob: '2006-03-12', job: 'Student', company: 'Hogwarts', traits: ['Slytherin'] },
+    { id: 'lily_p', type: 'INDIVIDUAL', name: 'Lily Potter II', sex: 'F', lifeStatus: 'ALIVE', dob: '2008-04-10', job: 'Student', company: 'Hogwarts', traits: ['Gryffindor'] }
+  ],
+  edges: [
+    { id: 'e_arthur_molly', source: 'arthur_w', target: 'molly_w', type: 'SPOUSE' },
+    { id: 'e_ron_parent1', source: 'arthur_w', target: 'ron_w', type: 'BIOLOGICAL_PARENT' },
+    { id: 'e_ron_parent2', source: 'molly_w', target: 'ron_w', type: 'BIOLOGICAL_PARENT' },
+    { id: 'e_ginny_parent1', source: 'arthur_w', target: 'ginny_w', type: 'BIOLOGICAL_PARENT' },
+    { id: 'e_ginny_parent2', source: 'molly_w', target: 'ginny_w', type: 'BIOLOGICAL_PARENT' },
+    { id: 'e_harry_ginny', source: 'harry_p', target: 'ginny_w', type: 'SPOUSE' },
+    { id: 'e_ron_hermione', source: 'ron_w', target: 'hermione_g', type: 'SPOUSE' },
+    { id: 'e_rose_p1', source: 'ron_w', target: 'rose_w', type: 'BIOLOGICAL_PARENT' },
+    { id: 'e_rose_p2', source: 'hermione_g', target: 'rose_w', type: 'BIOLOGICAL_PARENT' },
+    { id: 'e_hugo_p1', source: 'ron_w', target: 'hugo_w', type: 'BIOLOGICAL_PARENT' },
+    { id: 'e_hugo_p2', source: 'hermione_g', target: 'hugo_w', type: 'BIOLOGICAL_PARENT' },
+    { id: 'e_james_p1', source: 'harry_p', target: 'james_p', type: 'BIOLOGICAL_PARENT' },
+    { id: 'e_james_p2', source: 'ginny_w', target: 'james_p', type: 'BIOLOGICAL_PARENT' },
+    { id: 'e_albus_p1', source: 'harry_p', target: 'albus_p', type: 'BIOLOGICAL_PARENT' },
+    { id: 'e_albus_p2', source: 'ginny_w', target: 'albus_p', type: 'BIOLOGICAL_PARENT' },
+    { id: 'e_lily_p1', source: 'harry_p', target: 'lily_p', type: 'BIOLOGICAL_PARENT' },
+    { id: 'e_lily_p2', source: 'ginny_w', target: 'lily_p', type: 'BIOLOGICAL_PARENT' },
+    { id: 'e_sirius_harry_foster', source: 'sirius_b', target: 'harry_p', type: 'FOSTER_PARENT' },
+    { id: 'e_harry_ron_bestfriend', source: 'harry_p', target: 'ron_w', type: 'BEST_FRIEND' },
+    { id: 'e_harry_hermione_bestfriend', source: 'harry_p', target: 'hermione_g', type: 'BEST_FRIEND' },
+    { id: 'e_ron_hermione_class', source: 'ron_w', target: 'hermione_g', type: 'CLASSMATE' }
+  ]
+};
+
+export const TEMPLATES = [
+  ROYAL_DYNASTY,
+  MEDICAL_GENOGRAM,
+  GREEK_MYTHOLOGY,
+  BLENDED_FAMILY,
+  TUDOR_DYNASTY,
+  WIZARDING_LINEAGE
+];
 
 export async function loadTemplateIntoIndexedDB(template: SeedTemplate) {
   await db.transaction('rw', [db.nodes, db.edges, db.images], async () => {
