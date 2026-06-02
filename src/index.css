@@ -21,9 +21,20 @@
   padding: 0;
 }
 
-body, html {
+html {
+  /* Use 100% so the document fills the browser window exactly */
   width: 100%;
   height: 100%;
+  /* DO NOT add padding here — safe-area insets are handled per-component */
+}
+
+body {
+  width: 100%;
+  /* Use svh (small viewport height) as the base so the app never taller than
+     the smallest visible viewport (i.e., with browser chrome showing). Falls
+     back to 100% for older browsers. */
+  min-height: 100%;
+  min-height: 100svh;
   background-color: var(--bg-primary);
   color: var(--text-primary);
   font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
@@ -110,13 +121,21 @@ input[type="range"]::-webkit-slider-thumb:hover {
 .home-container {
   position: relative;
   width: 100vw;
+  /* dvh = dynamic viewport height (excludes browser chrome). Falls back to
+     svh then 100vh for older Safari / browsers. */
   height: 100vh;
+  height: 100dvh;
   overflow: hidden;
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: space-between;
-  padding: calc(64px + env(safe-area-inset-top, 0px)) calc(32px + env(safe-area-inset-right, 0px)) calc(64px + env(safe-area-inset-bottom, 0px)) calc(32px + env(safe-area-inset-left, 0px));
+  /* Safe-area padding keeps content clear of notch / Dynamic Island / home bar */
+  padding:
+    calc(64px + env(safe-area-inset-top, 0px))
+    calc(32px + env(safe-area-inset-right, 0px))
+    calc(64px + env(safe-area-inset-bottom, 0px))
+    calc(32px + env(safe-area-inset-left, 0px));
   background-color: var(--bg-primary);
   color: var(--text-primary);
   z-index: 1;
@@ -168,13 +187,11 @@ input[type="range"]::-webkit-slider-thumb:hover {
   position: relative;
   z-index: 10;
   width: 100%;
-  max-width: 100%;
   display: flex;
   flex-direction: column;
   align-items: center;
   margin: auto 0;
-  overflow: hidden;
-  padding: 0 16px;
+  /* No horizontal padding — buttons sit outside the viewport */
 }
 
 .carousel-title {
@@ -182,46 +199,65 @@ input[type="range"]::-webkit-slider-thumb:hover {
   font-weight: 800;
   text-transform: uppercase;
   letter-spacing: 0.18em;
-  margin-bottom: 24px;
+  margin-bottom: 20px;
   color: var(--text-primary);
   opacity: 0.8;
 }
 
-.carousel-viewport {
-  position: relative;
-  width: 100%;
-  overflow: visible;
+/* ── Row wrapper: [prev btn] [overflow viewport] [next btn] ── */
+.carousel-viewport-wrapper {
   display: flex;
   align-items: center;
-  justify-content: flex-start;
-  padding: 32px 0;
-  perspective: 1200px;
-  -webkit-perspective: 1200px;
+  gap: 12px;
+  width: 100%;
+  padding: 0 12px;
 }
 
+/* Overflow-hidden so inactive cards are clipped */
+.carousel-viewport {
+  flex: 1;
+  overflow: hidden;
+  /* Extra vertical room for the card lift animation */
+  padding: 24px 0 16px;
+  cursor: grab;
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+.carousel-viewport:active,
+.carousel-viewport .is-dragging {
+  cursor: grabbing;
+}
+
+/* Flat flex track — framer-motion controls x */
 .carousel-track {
   display: flex;
   gap: 24px;
   width: max-content;
-  transform-style: preserve-3d;
-  -webkit-transform-style: preserve-3d;
+  will-change: transform;
 }
 
+.carousel-track.is-dragging {
+  cursor: grabbing;
+}
+
+/* ── Template card ── */
 .template-card {
   width: 290px;
+  flex-shrink: 0;
   display: flex;
   flex-direction: column;
   justify-content: space-between;
   padding: 24px;
-  border-radius: 16px;
-  border: 1px solid rgba(171, 178, 191, 0.15);
-  background: rgba(40, 44, 52, 0.65);
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
-  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.35);
+  border-radius: 18px;
+  border: 1px solid rgba(171, 178, 191, 0.12);
+  background: rgba(40, 44, 52, 0.72);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.3);
   color: var(--text-primary);
-  transform-style: preserve-3d;
-  -webkit-transform-style: preserve-3d;
+  position: relative;
+  transition: border-color 0.3s ease, box-shadow 0.3s ease;
 }
 
 @media (min-width: 768px) {
@@ -230,16 +266,51 @@ input[type="range"]::-webkit-slider-thumb:hover {
   }
 }
 
-/* Carousel Prev/Next Buttons */
-.carousel-control {
+/* Active card: brighter border + stronger shadow */
+.template-card.card-active {
+  border-color: rgba(97, 175, 239, 0.35);
+  box-shadow:
+    0 20px 50px rgba(0, 0, 0, 0.45),
+    0 0 0 1px rgba(97, 175, 239, 0.18);
+}
+
+/* Animated glow ring on the active card */
+.card-glow-ring {
+  pointer-events: none;
   position: absolute;
-  top: 50%;
-  transform: translateY(-50%);
-  width: 48px;
-  height: 48px;
+  inset: -1px;
+  border-radius: 19px;
+  background: transparent;
+  border: 1.5px solid rgba(97, 175, 239, 0.4);
+  animation: card-pulse 2.4s ease-in-out infinite;
+}
+
+@keyframes card-pulse {
+  0%, 100% { opacity: 0.55; box-shadow: 0 0 0px rgba(97, 175, 239, 0); }
+  50%       { opacity: 1;    box-shadow: 0 0 18px rgba(97, 175, 239, 0.25); }
+}
+
+/* Card index badge (top-right): "2 / 5" */
+.card-badge {
+  display: inline-block;
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  color: rgba(171, 178, 191, 0.45);
+  background: rgba(255, 255, 255, 0.05);
+  padding: 2px 7px;
+  border-radius: 999px;
+  margin-bottom: 8px;
+}
+
+/* ── Prev / Next arrow buttons ── */
+.carousel-control {
+  flex-shrink: 0;
+  width: 44px;
+  height: 44px;
   border-radius: 50%;
   border: 1px solid rgba(171, 178, 191, 0.15);
-  background: rgba(40, 44, 52, 0.6);
+  background: rgba(40, 44, 52, 0.65);
   backdrop-filter: blur(12px);
   -webkit-backdrop-filter: blur(12px);
   color: var(--text-primary);
@@ -247,48 +318,32 @@ input[type="range"]::-webkit-slider-thumb:hover {
   align-items: center;
   justify-content: center;
   cursor: pointer;
-  z-index: 20;
-  transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.2);
+  transition: all 0.22s cubic-bezier(0.4, 0, 0.2, 1);
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.2);
 }
 
 .carousel-control:hover:not(:disabled) {
-  background: color-mix(in srgb, var(--color-primary) 12%, rgba(40, 44, 52, 0.8));
+  background: color-mix(in srgb, var(--color-primary) 14%, rgba(40, 44, 52, 0.85));
   border-color: var(--color-primary);
   color: var(--color-primary);
-  box-shadow: 0 0 16px color-mix(in srgb, var(--color-primary) 30%, transparent);
+  box-shadow: 0 0 14px color-mix(in srgb, var(--color-primary) 28%, transparent);
+  transform: scale(1.06);
 }
 
 .carousel-control:disabled {
-  opacity: 0.2;
+  opacity: 0.18;
   cursor: not-allowed;
+  transform: none;
 }
 
-.carousel-control.prev {
-  left: 8px;
-}
-
-.carousel-control.next {
-  right: 8px;
-}
-
-@media (min-width: 1024px) {
-  .carousel-control.prev {
-    left: 40px;
-  }
-  .carousel-control.next {
-    right: 40px;
-  }
-}
-
-/* Carousel Indicators */
+/* ── Dot indicators ── */
 .carousel-indicators {
   display: flex;
   align-items: center;
   justify-content: center;
   gap: 8px;
-  margin-top: 16px;
-  margin-bottom: 24px;
+  margin-top: 12px;
+  margin-bottom: 8px;
 }
 
 .indicator-dot {
@@ -296,22 +351,35 @@ input[type="range"]::-webkit-slider-thumb:hover {
   height: 8px;
   border-radius: 50%;
   background: var(--text-muted);
-  opacity: 0.5;
+  opacity: 0.45;
   cursor: pointer;
-  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  border: none;
+  padding: 0;
+  transition: all 0.28s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 .indicator-dot:hover {
-  opacity: 0.8;
+  opacity: 0.75;
   background: var(--text-primary);
 }
 
 .indicator-dot.active {
-  width: 24px;
+  width: 28px;
   border-radius: 4px;
   background: var(--color-primary);
   opacity: 1;
-  box-shadow: 0 0 8px color-mix(in srgb, var(--color-primary) 50%, transparent);
+  box-shadow: 0 0 8px color-mix(in srgb, var(--color-primary) 45%, transparent);
+}
+
+/* Template name hint shown below dots */
+.carousel-hint {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--color-primary);
+  margin-bottom: 4px;
+  min-height: 14px;
 }
 
 .card-title {
@@ -472,11 +540,18 @@ input[type="range"]::-webkit-slider-thumb:hover {
   display: flex;
   flex-direction: column;
   width: 100vw;
+  /* Use dvh so the workspace never extends behind the mobile browser nav bar */
   height: 100vh;
+  height: 100dvh;
   overflow: hidden;
   background-color: var(--bg-primary);
   color: var(--text-primary);
   position: relative;
+  /* Top safe-area: keeps the control ribbon clear of the notch / status bar */
+  padding-top: env(safe-area-inset-top, 0px);
+  /* Left/Right safe-area for landscape mode */
+  padding-left: env(safe-area-inset-left, 0px);
+  padding-right: env(safe-area-inset-right, 0px);
 }
 
 .control-ribbon {
@@ -1205,7 +1280,8 @@ input[type="range"]::-webkit-slider-thumb:hover {
 /* Floating Action Toolbar Styles */
 .floating-action-toolbar {
   position: absolute;
-  bottom: 24px;
+  /* Bottom clears the iOS home indicator bar */
+  bottom: calc(24px + env(safe-area-inset-bottom, 0px));
   left: 50%;
   transform: translateX(-50%);
   z-index: 30;
@@ -1303,7 +1379,8 @@ input[type="range"]::-webkit-slider-thumb:hover {
 /* Mobile responsive adjustments for floating toolbar */
 @media (max-width: 768px) {
   .floating-action-toolbar {
-    bottom: 16px;
+    /* Keep safe-area inset so toolbar clears the iOS home indicator */
+    bottom: calc(16px + env(safe-area-inset-bottom, 0px));
     padding: 6px;
     gap: 4px;
     border-radius: 12px;
@@ -1317,13 +1394,9 @@ input[type="range"]::-webkit-slider-thumb:hover {
   }
 }
 
-/* iOS & Mobile Safe Area Notch Compatibility */
-body, .workspace-container {
-  padding-top: env(safe-area-inset-top, 0px);
-  padding-bottom: env(safe-area-inset-bottom, 0px);
-  padding-left: env(safe-area-inset-left, 0px);
-  padding-right: env(safe-area-inset-right, 0px);
-}
+/* iOS & Mobile Safe Area — applied per-component, not globally on body.
+   Body-level safe-area padding conflicts with 100dvh containers and causes
+   content to be clipped. Each interactive surface handles its own insets. */
 
 /* Floating micro-action rings fill definitions */
 .floating-add-spouse { fill: var(--color-success); }
@@ -1366,13 +1439,17 @@ body, .workspace-container {
 @media (max-width: 768px) {
   .sliding-drawer {
     max-width: 100% !important;
-    height: 82% !important;
+    /* 82svh keeps the sheet within the static visible viewport (ignores browser chrome) */
+    height: 82svh !important;
+    height: 82dvh !important;
     top: auto !important;
     bottom: 0 !important;
     border-left: none !important;
     border-top: 1px solid rgba(171, 178, 191, 0.15) !important;
     border-radius: 24px 24px 0 0 !important;
     box-shadow: 0 -10px 32px rgba(0, 0, 0, 0.5) !important;
+    /* Bottom padding clears home indicator inside the sheet */
+    padding-bottom: env(safe-area-inset-bottom, 0px) !important;
   }
   .drawer-drag-handle {
     display: block;
