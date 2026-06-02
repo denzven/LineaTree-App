@@ -23,7 +23,7 @@ export interface TreeEdge {
   source: string;
   target: string;
   type:
-    | 'BIOLOGICAL_PARENT' | 'ADOPTIVE_PARENT' | 'FOSTER_PARENT'
+    | 'BIOLOGICAL_PARENT' | 'ADOPTIVE_PARENT' | 'FOSTER_PARENT' | 'STEP_PARENT'
     | 'SPOUSE' | 'FIANCE' | 'DIVORCED' | 'SEPARATED' | 'CONSANGUINOUS' | 'EX_PARTNER'
     | 'FRIEND' | 'BEST_FRIEND' | 'NEIGHBOR' | 'COWORKER' | 'COLLEAGUE' | 'CLASSMATE' | 'ESTRANGED';
 }

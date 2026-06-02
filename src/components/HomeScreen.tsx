@@ -1,5 +1,5 @@
-import React, { useEffect, useRef } from 'react';
-import { motion, useMotionValue, useTransform } from 'framer-motion';
+import React, { useEffect, useRef, useState } from 'react';
+import { motion, useMotionValue, useTransform, AnimatePresence } from 'framer-motion';
 import { TEMPLATES, loadTemplateIntoIndexedDB, type SeedTemplate } from '../db/seedData';
 import { PreviewIcon, ArrowRightIcon, PlusIcon, UploadIcon } from './Icons';
 import { db } from '../db/indexedDB';
@@ -16,6 +16,9 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({ onEnterWorkspace, isInst
   
   // Custom file input for .ltree
   const fileInputRef = useRef<HTMLInputElement | null>(null);
+
+  // Custom Alert Modal state
+  const [customAlert, setCustomAlert] = useState<{ title: string; message: string } | null>(null);
 
   // Background Interactive Particle System
   useEffect(() => {
@@ -191,10 +194,16 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({ onEnterWorkspace, isInst
           });
           onEnterWorkspace(false);
         } else {
-          alert('Invalid .ltree file format: missing nodes or edges data.');
+          setCustomAlert({
+            title: 'Invalid File Format',
+            message: 'Invalid .ltree file format: missing nodes or edges data.'
+          });
         }
       } catch (err) {
-        alert('Failed to parse .ltree file.');
+        setCustomAlert({
+          title: 'Import Failed',
+          message: 'Failed to parse .ltree file.'
+        });
       }
     };
     reader.readAsText(file);
@@ -327,7 +336,7 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({ onEnterWorkspace, isInst
               e.currentTarget.style.borderColor = 'rgba(97, 175, 239, 0.25)';
             }}
           >
-            📲 Install App
+            <i className="fa-solid fa-mobile-screen-button" style={{ marginRight: '6px' }}></i> Install App
           </button>
         )}
 
@@ -374,6 +383,57 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({ onEnterWorkspace, isInst
           style={{ display: 'none' }}
         />
       </footer>
+
+      {/* Custom Glassmorphic Alert Modal */}
+      <AnimatePresence>
+        {customAlert && (
+          <div className="modal-overlay" style={{ zIndex: 10000 }}>
+            <motion.div
+              initial={{ scale: 0.95, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.95, opacity: 0 }}
+              transition={{ type: 'spring', duration: 0.3 }}
+              className="modal-content"
+              style={{
+                maxWidth: '420px',
+                border: '1px solid rgba(224, 108, 117, 0.3)',
+                boxShadow: '0 0 24px rgba(224, 108, 117, 0.15)'
+              }}
+            >
+              <div className="modal-header">
+                <h3 className="modal-title" style={{
+                  color: '#E06C75',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '8px'
+                }}>
+                  <i className="fa-solid fa-triangle-exclamation"></i> {customAlert.title}
+                </h3>
+                <button
+                  onClick={() => setCustomAlert(null)}
+                  className="modal-btn-close"
+                >
+                  ×
+                </button>
+              </div>
+
+              <div style={{ margin: '16px 0', fontSize: '13px', color: '#ABB2BF', lineHeight: 1.5, textAlign: 'left' }}>
+                {customAlert.message}
+              </div>
+
+              <div className="modal-actions" style={{ marginTop: '24px' }}>
+                <button
+                  onClick={() => setCustomAlert(null)}
+                  className="btn-confirm"
+                  style={{ background: '#E06C75', color: '#1E222B', fontWeight: 'bold', width: '100%', justifyContent: 'center' }}
+                >
+                  Dismiss
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
     </div>
   );
 };

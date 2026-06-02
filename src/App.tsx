@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { HomeScreen } from './components/HomeScreen';
 import { Workspace } from './components/Workspace';
@@ -23,6 +23,49 @@ function App() {
 
   // Chromium checker state
   const [showChromiumModal, setShowChromiumModal] = useState(false);
+
+  // Press back again to exit states & effects
+  const [showExitModal, setShowExitModal] = useState(false);
+  const lastBackPress = useRef<number>(0);
+
+  // Double back to exit handler on HOME screen
+  useEffect(() => {
+    if (isLoading) return; // Wait until preloader is done
+    if (currentView !== 'HOME') return;
+
+    // Push dummy history entry if not already pushed to intercept Back button
+    if (window.history.state?.view !== 'HOME') {
+      window.history.pushState({ view: 'HOME' }, '', window.location.href);
+    }
+
+    const handlePopState = () => {
+      const now = Date.now();
+      if (now - lastBackPress.current < 2000) {
+        // Exit the app by going back past our dummy base state
+        window.history.back();
+      } else {
+        // Re-lock the navigation by pushing dummy state back
+        window.history.pushState({ view: 'HOME' }, '', window.location.href);
+        lastBackPress.current = now;
+        setShowExitModal(true);
+      }
+    };
+
+    window.addEventListener('popstate', handlePopState);
+    return () => {
+      window.removeEventListener('popstate', handlePopState);
+    };
+  }, [currentView, isLoading]);
+
+  // Auto-dismiss exit modal toast
+  useEffect(() => {
+    if (showExitModal) {
+      const timer = setTimeout(() => {
+        setShowExitModal(false);
+      }, 2000);
+      return () => clearTimeout(timer);
+    }
+  }, [showExitModal]);
 
   // Stagger loading texts during splash preloader
   useEffect(() => {
@@ -257,7 +300,7 @@ function App() {
             >
               <div className="modal-header">
                 <h3 className="modal-title" style={{ color: '#E5C07B', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                  ⚠️ Browser Recommendation
+                  <i className="fa-solid fa-circle-exclamation"></i> Browser Recommendation
                 </h3>
                 <button
                   onClick={() => setShowChromiumModal(false)}
@@ -314,7 +357,7 @@ function App() {
             >
               <div className="modal-header">
                 <h3 className="modal-title" style={{ color: '#61AFEF', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                  📲 iOS Installation Guide
+                  <i className="fa-solid fa-mobile-screen-button"></i> iOS Installation Guide
                 </h3>
                 <button
                   onClick={() => setShowIOSInstallModal(false)}
@@ -347,6 +390,40 @@ function App() {
               </div>
             </motion.div>
           </div>
+        )}
+      </AnimatePresence>
+
+      {/* 5. Press Back Again to Exit App Toast */}
+      <AnimatePresence>
+        {showExitModal && (
+          <motion.div
+            initial={{ opacity: 0, y: 40, x: '-50%' }}
+            animate={{ opacity: 1, y: 0, x: '-50%' }}
+            exit={{ opacity: 0, y: 20, x: '-50%' }}
+            transition={{ type: 'spring', damping: 25, stiffness: 350 }}
+            style={{
+              position: 'fixed',
+              bottom: '48px',
+              left: '50%',
+              zIndex: 100000,
+              background: 'rgba(30, 34, 42, 0.95)',
+              backdropFilter: 'blur(16px)',
+              WebkitBackdropFilter: 'blur(16px)',
+              border: '1px solid rgba(224, 108, 117, 0.35)',
+              boxShadow: '0 8px 32px rgba(0, 0, 0, 0.45)',
+              borderRadius: '12px',
+              padding: '12px 20px',
+              color: '#E06C75',
+              fontWeight: 'bold',
+              fontSize: '12px',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '8px',
+              pointerEvents: 'none'
+            }}
+          >
+            <span style={{ fontSize: '14px' }}>🚪</span> Press back again to exit the app
+          </motion.div>
         )}
       </AnimatePresence>
     </div>

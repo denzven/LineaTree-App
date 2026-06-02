@@ -104,7 +104,89 @@ export const MEDICAL_GENOGRAM: SeedTemplate = {
   ]
 };
 
-export const TEMPLATES = [ROYAL_DYNASTY, MEDICAL_GENOGRAM];
+export const GREEK_MYTHOLOGY: SeedTemplate = {
+  name: 'Greek Pantheon Mythology',
+  description: 'An ancient Greek pantheon tree charting Titan progenitors, Olympian gods, sibling alliances, and divine lineages.',
+  nodes: [
+    { id: 'titan_cronus', type: 'INDIVIDUAL', name: 'Cronus', sex: 'M', lifeStatus: 'DECEASED', dob: '0000-01-01', job: 'Titan King', company: 'Mount Othrys', traits: ['Titan Strength', 'Golden Sickle'] },
+    { id: 'titan_rhea', type: 'INDIVIDUAL', name: 'Rhea', sex: 'F', lifeStatus: 'DECEASED', dob: '0000-01-01', job: 'Titan Queen', company: 'Mount Othrys', traits: ['Mother of Gods'] },
+    
+    { id: 'god_zeus', type: 'INDIVIDUAL', name: 'Zeus', sex: 'M', lifeStatus: 'ALIVE', dob: '0100-01-01', job: 'King of Olympus', company: 'Mount Olympus', traits: ['Lightning Bolt', 'Thunder'] },
+    { id: 'god_hera', type: 'INDIVIDUAL', name: 'Hera', sex: 'F', lifeStatus: 'ALIVE', dob: '0102-01-01', job: 'Queen of Olympus', company: 'Mount Olympus', traits: ['Marriage Patron', 'Peacock'] },
+    { id: 'god_poseidon', type: 'INDIVIDUAL', name: 'Poseidon', sex: 'M', lifeStatus: 'ALIVE', dob: '0101-01-01', job: 'God of Sea', company: 'Oceans', traits: ['Trident', 'Earthquakes'] },
+    { id: 'god_hades', type: 'INDIVIDUAL', name: 'Hades', sex: 'M', lifeStatus: 'ALIVE', dob: '0099-01-01', job: 'God of Underworld', company: 'Underworld', traits: ['Cap of Invisibility', 'Bident'] },
+    
+    { id: 'god_ares', type: 'INDIVIDUAL', name: 'Ares', sex: 'M', lifeStatus: 'ALIVE', dob: '0200-01-01', job: 'God of War', company: 'Olympus Army', traits: ['Spear', 'Chariot'] },
+    { id: 'god_athena', type: 'INDIVIDUAL', name: 'Athena', sex: 'F', lifeStatus: 'ALIVE', dob: '0205-01-01', job: 'Goddess of Wisdom', company: 'Olympus Academy', traits: ['Owl', 'Aegis Shield'] }
+  ],
+  edges: [
+    { id: 'e_cronus_rhea', source: 'titan_cronus', target: 'titan_rhea', type: 'SPOUSE' },
+    
+    { id: 'e_zeus_parent1', source: 'titan_cronus', target: 'god_zeus', type: 'BIOLOGICAL_PARENT' },
+    { id: 'e_zeus_parent2', source: 'titan_rhea', target: 'god_zeus', type: 'BIOLOGICAL_PARENT' },
+    { id: 'e_hera_parent1', source: 'titan_cronus', target: 'god_hera', type: 'BIOLOGICAL_PARENT' },
+    { id: 'e_hera_parent2', source: 'titan_rhea', target: 'god_hera', type: 'BIOLOGICAL_PARENT' },
+    { id: 'e_poseidon_parent1', source: 'titan_cronus', target: 'god_poseidon', type: 'BIOLOGICAL_PARENT' },
+    { id: 'e_poseidon_parent2', source: 'titan_rhea', target: 'god_poseidon', type: 'BIOLOGICAL_PARENT' },
+    { id: 'e_hades_parent1', source: 'titan_cronus', target: 'god_hades', type: 'BIOLOGICAL_PARENT' },
+    { id: 'e_hades_parent2', source: 'titan_rhea', target: 'god_hades', type: 'BIOLOGICAL_PARENT' },
+    
+    { id: 'e_zeus_hera', source: 'god_zeus', target: 'god_hera', type: 'SPOUSE' },
+    { id: 'e_ares_parent1', source: 'god_zeus', target: 'god_ares', type: 'BIOLOGICAL_PARENT' },
+    { id: 'e_ares_parent2', source: 'god_hera', target: 'god_ares', type: 'BIOLOGICAL_PARENT' },
+    
+    { id: 'e_zeus_athena', source: 'god_zeus', target: 'god_athena', type: 'BIOLOGICAL_PARENT' },
+    
+    // Allies / Social links
+    { id: 'e_zeus_poseidon_ally', source: 'god_zeus', target: 'god_poseidon', type: 'BEST_FRIEND' },
+    { id: 'e_poseidon_hades_ally', source: 'god_poseidon', target: 'god_hades', type: 'BEST_FRIEND' },
+    { id: 'e_ares_athena_estranged', source: 'god_ares', target: 'god_athena', type: 'ESTRANGED' }
+  ]
+};
+
+export const BLENDED_FAMILY: SeedTemplate = {
+  name: 'Modern Blended Pedigree',
+  description: 'A modern blended family structure showing step-parents, biological parents, cooperative co-parenting, and step-siblings.',
+  nodes: [
+    { id: 'n_david', type: 'INDIVIDUAL', name: 'David Miller', sex: 'M', lifeStatus: 'ALIVE', dob: '1978-03-12', job: 'Educator', company: 'High School', traits: ['Glasses', 'Brown Eyes'] },
+    { id: 'n_alice', type: 'INDIVIDUAL', name: 'Alice Vance', sex: 'F', lifeStatus: 'ALIVE', dob: '1980-07-19', job: 'Writer', company: 'Self-employed', traits: ['Blonde Hair', 'Blue Eyes'] },
+    { id: 'n_sarah', type: 'INDIVIDUAL', name: 'Sarah Miller', sex: 'F', lifeStatus: 'ALIVE', dob: '1983-11-05', job: 'Web Developer', company: 'Digital Agency', traits: ['Red Hair', 'Green Eyes'] },
+    { id: 'n_john', type: 'INDIVIDUAL', name: 'John Vance', sex: 'M', lifeStatus: 'ALIVE', dob: '1976-05-24', job: 'Project Manager', company: 'Tech Inc', traits: ['Beard', 'Glasses'] },
+    
+    { id: 'n_leo', type: 'INDIVIDUAL', name: 'Leo Miller', sex: 'M', lifeStatus: 'ALIVE', dob: '2005-09-14', job: 'College Student', company: 'State Univ', traits: ['Brown Eyes', 'Athletic'] },
+    { id: 'n_emma', type: 'INDIVIDUAL', name: 'Emma Vance', sex: 'F', lifeStatus: 'ALIVE', dob: '2010-04-12', job: 'High School Student', company: 'Public School', traits: ['Blonde Hair', 'Creative'] },
+    { id: 'n_chloe', type: 'INDIVIDUAL', name: 'Chloe Miller', sex: 'F', lifeStatus: 'ALIVE', dob: '2015-08-30', job: 'Elementary Student', company: 'Public School', traits: ['Green Eyes', 'Dimples'] }
+  ],
+  edges: [
+    // Historical divorce
+    { id: 'e_david_alice_divorce', source: 'n_david', target: 'n_alice', type: 'DIVORCED' },
+    
+    // New marriages
+    { id: 'e_david_sarah', source: 'n_david', target: 'n_sarah', type: 'SPOUSE' },
+    { id: 'e_alice_john', source: 'n_alice', target: 'n_john', type: 'SPOUSE' },
+    
+    // Biological children
+    { id: 'e_leo_father', source: 'n_david', target: 'n_leo', type: 'BIOLOGICAL_PARENT' },
+    { id: 'e_leo_mother', source: 'n_alice', target: 'n_leo', type: 'BIOLOGICAL_PARENT' },
+    
+    { id: 'e_emma_mother', source: 'n_alice', target: 'n_emma', type: 'BIOLOGICAL_PARENT' },
+    { id: 'e_emma_father', source: 'n_john', target: 'n_emma', type: 'BIOLOGICAL_PARENT' },
+    
+    { id: 'e_chloe_father', source: 'n_david', target: 'n_chloe', type: 'BIOLOGICAL_PARENT' },
+    { id: 'e_chloe_mother', source: 'n_sarah', target: 'n_chloe', type: 'BIOLOGICAL_PARENT' },
+    
+    // Step relationships
+    { id: 'e_leo_stepmother', source: 'n_sarah', target: 'n_leo', type: 'STEP_PARENT' },
+    { id: 'e_leo_stepfather', source: 'n_john', target: 'n_leo', type: 'STEP_PARENT' },
+    { id: 'e_emma_stepfather', source: 'n_david', target: 'n_emma', type: 'STEP_PARENT' },
+    
+    // Friendly co-parenting overlays
+    { id: 'e_david_john_coparent', source: 'n_david', target: 'n_john', type: 'FRIEND' },
+    { id: 'e_alice_sarah_coparent', source: 'n_alice', target: 'n_sarah', type: 'FRIEND' }
+  ]
+};
+
+export const TEMPLATES = [ROYAL_DYNASTY, MEDICAL_GENOGRAM, GREEK_MYTHOLOGY, BLENDED_FAMILY];
 
 export async function loadTemplateIntoIndexedDB(template: SeedTemplate) {
   await db.transaction('rw', [db.nodes, db.edges, db.images], async () => {

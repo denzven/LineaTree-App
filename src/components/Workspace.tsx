@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion, AnimatePresence, useMotionValue } from 'framer-motion';
 import { db } from '../db/indexedDB';
 import type { TreeNode, TreeEdge, ImageAsset } from '../db/indexedDB';
 import { useLiveQuery } from 'dexie-react-hooks';
@@ -55,6 +55,7 @@ export const Workspace: React.FC<WorkspaceProps> = ({
   const [zoom, setZoom] = useState(0.85);
   const [isPanning, setIsPanning] = useState(false);
   const panStart = useRef({ x: 0, y: 0 });
+  const panStartClient = useRef({ x: 0, y: 0 });
   const canvasRef = useRef<HTMLDivElement | null>(null);
 
   // Bind native non-passive touchmove and wheel event listeners to fully block native browser zooming
@@ -97,11 +98,51 @@ export const Workspace: React.FC<WorkspaceProps> = ({
   } | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [showSearchResults, setShowSearchResults] = useState(false);
+  const [isMultiSelectMode, setIsMultiSelectMode] = useState(false);
+  const [showMobileRelationSheet, setShowMobileRelationSheet] = useState(false);
+  const [boxSelectStart, setBoxSelectStart] = useState<{ x: number; y: number } | null>(null);
+  const [boxSelectEnd, setBoxSelectEnd] = useState<{ x: number; y: number } | null>(null);
+  const [isBoxSelecting, setIsBoxSelecting] = useState(false);
+  const boxSelectInitialIds = useRef<string[]>([]);
+
+  // Settings Pane States (with localStorage persistence)
+  const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+  const [theme, setTheme] = useState(localStorage.getItem('ui_theme') || 'ONE_DARK');
+  const [fontSize, setFontSize] = useState(parseInt(localStorage.getItem('ui_font_size') || '14'));
+  const [backgroundGrid, setBackgroundGrid] = useState(localStorage.getItem('ui_grid') || 'DOTS');
+  const [perfMode, setPerfMode] = useState(localStorage.getItem('ui_perf') === 'true');
+
+  // Responsive layout check
+  const [isMobile, setIsMobile] = useState(typeof window !== 'undefined' ? window.innerWidth <= 768 : false);
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const handleResize = () => {
+      setIsMobile(window.innerWidth <= 768);
+    };
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
+
+  // Custom Hover Tooltips (Alt Modals)
+  const [tooltip, setTooltip] = useState<{ text: string } | null>(null);
+  const tooltipX = useMotionValue(0);
+  const tooltipY = useMotionValue(0);
+  const tooltipTimeout = useRef<any>(null);
+
+  // Inspector Drawer open state
+  const [isDrawerOpen, setIsDrawerOpen] = useState(false);
+
+  // Radial Menu open state
+  const [openRadialNodeId, setOpenRadialNodeId] = useState<string | null>(null);
+
+  // Track unsaved changes state
+  const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
 
   // Active Undo/Redo History Stack & Clipboard Refs
   const historyStack = useRef<{ nodes: TreeNode[]; edges: TreeEdge[] }[]>([]);
   const historyPointer = useRef<number>(-1);
   const hasInitializedHistory = useRef(false);
+  const isNavigatingAway = useRef(false);
   const copiedNodes = useRef<TreeNode[]>([]);
   const copiedEdges = useRef<TreeEdge[]>([]);
 
@@ -113,6 +154,9 @@ export const Workspace: React.FC<WorkspaceProps> = ({
     };
     historyStack.current = [...currentStack, newSnapshot];
     historyPointer.current = historyStack.current.length - 1;
+    if (hasInitializedHistory.current) {
+      setHasUnsavedChanges(true);
+    }
   };
 
   // Initialize history snapshot once query loads
@@ -146,6 +190,7 @@ export const Workspace: React.FC<WorkspaceProps> = ({
       });
       setNodes(previousState.nodes);
       setEdges(previousState.edges);
+      setHasUnsavedChanges(true);
       triggerHapticFeedback('TICK');
     }
   };
@@ -173,8 +218,150 @@ export const Workspace: React.FC<WorkspaceProps> = ({
       });
       setNodes(nextState.nodes);
       setEdges(nextState.edges);
+      setHasUnsavedChanges(true);
       triggerHapticFeedback('TICK');
     }
+  };
+
+  // Performance mode transition helpers
+  const drawerTransition = perfMode ? { duration: 0 } : { type: 'spring', damping: 24, stiffness: 220 };
+  const modalTransition = perfMode ? { duration: 0 } : { type: 'spring', duration: 0.3 };
+  const tooltipTransition = perfMode ? { duration: 0 } : { duration: 0.15 };
+
+  // Sync Settings to DOM
+  useEffect(() => {
+    const root = document.documentElement;
+    if (theme === 'ONE_DARK') {
+      root.style.setProperty('--bg-primary', '#181A1F');
+      root.style.setProperty('--color-primary', '#4CB2FF');
+      root.style.setProperty('--color-secondary', '#D75BF7');
+      root.style.setProperty('--color-success', '#87D37C');
+      root.style.setProperty('--color-warning', '#F3B43F');
+      root.style.setProperty('--color-danger', '#FF6166');
+      root.style.setProperty('--color-alternative', '#4DD2DF');
+    } else if (theme === 'CHARCOAL') {
+      root.style.setProperty('--bg-primary', '#121212');
+      root.style.setProperty('--color-primary', '#9E9E9E');
+      root.style.setProperty('--color-secondary', '#757575');
+      root.style.setProperty('--color-success', '#689F38');
+      root.style.setProperty('--color-warning', '#F57C00');
+      root.style.setProperty('--color-danger', '#D32F2F');
+      root.style.setProperty('--color-alternative', '#0097A7');
+    } else if (theme === 'SLATE') {
+      root.style.setProperty('--bg-primary', '#1E2530');
+      root.style.setProperty('--color-primary', '#607D8B');
+      root.style.setProperty('--color-secondary', '#90A4AE');
+      root.style.setProperty('--color-success', '#4CAF50');
+      root.style.setProperty('--color-warning', '#FF9800');
+      root.style.setProperty('--color-danger', '#F44336');
+      root.style.setProperty('--color-alternative', '#00BCD4');
+    } else if (theme === 'MATRIX') {
+      root.style.setProperty('--bg-primary', '#000000');
+      root.style.setProperty('--color-primary', '#00FF00');
+      root.style.setProperty('--color-secondary', '#00DD00');
+      root.style.setProperty('--color-success', '#00FF00');
+      root.style.setProperty('--color-warning', '#A5D6A7');
+      root.style.setProperty('--color-danger', '#FF1744');
+      root.style.setProperty('--color-alternative', '#00E676');
+    }
+    localStorage.setItem('ui_theme', theme);
+  }, [theme]);
+
+  useEffect(() => {
+    document.documentElement.style.fontSize = `${fontSize}px`;
+    localStorage.setItem('ui_font_size', fontSize.toString());
+  }, [fontSize]);
+
+  useEffect(() => {
+    localStorage.setItem('ui_grid', backgroundGrid);
+  }, [backgroundGrid]);
+
+  useEffect(() => {
+    localStorage.setItem('ui_perf', perfMode.toString());
+  }, [perfMode]);
+
+  const triggerLeaveModal = () => {
+    setCustomModal({
+      isOpen: true,
+      title: hasUnsavedChanges ? 'Unsaved Changes Warning' : 'Leave Workspace',
+      message: hasUnsavedChanges 
+        ? 'You have unsaved changes in your pedigree. If you leave now, any changes since your last export will not be saved to a file (although they are stored in this browser). Do you want to return to the home screen anyway?'
+        : 'Are you sure you want to leave the workspace and return to the home screen?',
+      type: 'CONFIRM',
+      onConfirm: () => {
+        isNavigatingAway.current = true;
+        window.history.back();
+        setTimeout(() => {
+          onBackToHome();
+        }, 50);
+      }
+    });
+  };
+
+  // Prevent leaving page with unsaved changes & intercept back button
+  useEffect(() => {
+    const handleBeforeUnload = (e: BeforeUnloadEvent) => {
+      e.preventDefault();
+      e.returnValue = '';
+      return '';
+    };
+    window.addEventListener('beforeunload', handleBeforeUnload);
+
+    // Intercept browser back button
+    window.history.pushState(null, '', window.location.href);
+
+    const handlePopState = () => {
+      if (isNavigatingAway.current) return;
+      // Put it back to lock history
+      window.history.pushState(null, '', window.location.href);
+      triggerLeaveModal();
+    };
+
+    window.addEventListener('popstate', handlePopState);
+
+    return () => {
+      window.removeEventListener('beforeunload', handleBeforeUnload);
+      window.removeEventListener('popstate', handlePopState);
+    };
+  }, [hasUnsavedChanges]);
+
+  const handleBackToHome = () => {
+    triggerLeaveModal();
+  };
+
+  const handleMouseEnterTooltip = (e: React.MouseEvent, text: string) => {
+    e.currentTarget.removeAttribute('title');
+    const target = e.currentTarget;
+    
+    // Position it initially where the mouse entered
+    tooltipX.set(e.clientX);
+    tooltipY.set(e.clientY - 8);
+
+    const handleMouseMove = (moveEvent: Event) => {
+      const mouseEv = moveEvent as MouseEvent;
+      tooltipX.set(mouseEv.clientX);
+      tooltipY.set(mouseEv.clientY - 8);
+    };
+
+    const handleMouseLeave = () => {
+      target.removeEventListener('mousemove', handleMouseMove);
+      target.removeEventListener('mouseleave', handleMouseLeave);
+      if (tooltipTimeout.current) clearTimeout(tooltipTimeout.current);
+      setTooltip(null);
+    };
+
+    target.addEventListener('mousemove', handleMouseMove);
+    target.addEventListener('mouseleave', handleMouseLeave);
+
+    if (tooltipTimeout.current) clearTimeout(tooltipTimeout.current);
+    tooltipTimeout.current = setTimeout(() => {
+      setTooltip({ text });
+    }, 350);
+  };
+
+  const handleMouseLeaveTooltip = () => {
+    if (tooltipTimeout.current) clearTimeout(tooltipTimeout.current);
+    setTooltip(null);
   };
 
   const handleCopy = () => {
@@ -308,7 +495,7 @@ export const Workspace: React.FC<WorkspaceProps> = ({
     const lvls: Record<string, number> = {};
     nodes.forEach((n) => { lvls[n.id] = 0; });
     const pEdges = edges.filter(
-      (e) => e.type === 'BIOLOGICAL_PARENT' || e.type === 'ADOPTIVE_PARENT' || e.type === 'FOSTER_PARENT'
+      (e) => e.type === 'BIOLOGICAL_PARENT' || e.type === 'ADOPTIVE_PARENT' || e.type === 'FOSTER_PARENT' || e.type === 'STEP_PARENT'
     );
     for (let i = 0; i < 6; i++) {
       pEdges.forEach((e) => {
@@ -374,6 +561,12 @@ export const Workspace: React.FC<WorkspaceProps> = ({
         e.preventDefault();
         handlePaste();
       }
+
+      // Link (L) when exactly 2 nodes are selected
+      if (!isCtrlOrMeta && e.key.toLowerCase() === 'l' && selectedNodeIds.length === 2) {
+        e.preventDefault();
+        openSmartLinkModal(selectedNodeIds[0], selectedNodeIds[1]);
+      }
     };
 
     window.addEventListener('keydown', handleKeyDown);
@@ -402,7 +595,15 @@ export const Workspace: React.FC<WorkspaceProps> = ({
 
   const handleNodeClick = (e: React.MouseEvent, nodeId: string) => {
     e.stopPropagation();
-    if (e.ctrlKey || e.shiftKey) {
+    if (e.shiftKey) {
+      e.preventDefault();
+    }
+    if (longPressActive.current) {
+      longPressActive.current = false;
+      return;
+    }
+
+    if (e.ctrlKey || e.shiftKey || isMultiSelectMode) {
       setSelectedNodeIds((prev) => {
         const isAlreadySelected = prev.includes(nodeId);
         if (isAlreadySelected) {
@@ -418,6 +619,10 @@ export const Workspace: React.FC<WorkspaceProps> = ({
       setSelectedNodeIds([nodeId]);
       setSelectedNodeId(nodeId);
     }
+
+    if (e.detail === 2) {
+      setIsDrawerOpen(true);
+    }
   };
 
   // 9. Node dragging implementation
@@ -430,6 +635,7 @@ export const Workspace: React.FC<WorkspaceProps> = ({
   const longPressTimer = useRef<any>(null);
   const longPressActive = useRef<boolean>(false);
   const touchStartPos = useRef<{ x: number; y: number }>({ x: 0, y: 0 });
+  const dragStartPosMouse = useRef<{ x: number; y: number }>({ x: 0, y: 0 });
   const drawerTouchStart = useRef<number | null>(null);
 
   // Mobile Haptic Vibration Feedback Helper (Tactile PWA UX)
@@ -554,20 +760,34 @@ export const Workspace: React.FC<WorkspaceProps> = ({
     setDraggedNodeId(nodeId);
     triggerHapticFeedback('TICK');
 
+    // Start 500ms long press timer for PC radial menu
+    if (longPressTimer.current) {
+      clearTimeout(longPressTimer.current);
+    }
+    longPressActive.current = false;
+    dragStartPosMouse.current = { x: e.clientX, y: e.clientY };
+    longPressTimer.current = setTimeout(() => {
+      longPressActive.current = true;
+      setOpenRadialNodeId(nodeId);
+      triggerHapticFeedback('SUCCESS');
+    }, 500);
+
+    let newSelectedIds = selectedNodeIds;
     // If node is not selected, select it
     if (!selectedNodeIds.includes(nodeId)) {
-      if (e.ctrlKey || e.shiftKey) {
-        setSelectedNodeIds((prev) => [...prev, nodeId]);
+      if (e.ctrlKey || e.shiftKey || isMultiSelectMode) {
+        newSelectedIds = [...selectedNodeIds, nodeId];
+        setSelectedNodeIds(newSelectedIds);
+        setSelectedNodeId(nodeId);
       } else {
-        setSelectedNodeIds([nodeId]);
+        newSelectedIds = [nodeId];
+        setSelectedNodeIds(newSelectedIds);
         setSelectedNodeId(nodeId);
       }
     }
 
     // Identify spousal/horizontally related nodes to move them rigidly together!
-    const initialTargets = selectedNodeIds.includes(nodeId) 
-      ? (selectedNodeIds.includes(nodeId) ? selectedNodeIds : [...selectedNodeIds, nodeId]) 
-      : [nodeId];
+    const initialTargets = newSelectedIds;
     
     const visited = new Set<string>(initialTargets);
     const queue = [...initialTargets];
@@ -616,21 +836,26 @@ export const Workspace: React.FC<WorkspaceProps> = ({
     touchStartPos.current = { x: startX, y: startY };
     longPressActive.current = false;
 
-    // Start 600ms long press timer for mobile right click custom context menu!
+    // Start 500ms long press timer for mobile radial menu!
     longPressTimer.current = setTimeout(() => {
       longPressActive.current = true;
-      setContextMenu({
-        x: startX,
-        y: startY,
-        nodeId
-      });
-    }, 600);
+      setOpenRadialNodeId(nodeId);
+      triggerHapticFeedback('SUCCESS');
+    }, 500);
 
     setDraggedNodeId(nodeId);
 
+    let newSelectedIds = selectedNodeIds;
     if (!selectedNodeIds.includes(nodeId)) {
-      setSelectedNodeIds([nodeId]);
-      setSelectedNodeId(nodeId);
+      if (isMultiSelectMode) {
+        newSelectedIds = [...selectedNodeIds, nodeId];
+        setSelectedNodeIds(newSelectedIds);
+        setSelectedNodeId(nodeId);
+      } else {
+        newSelectedIds = [nodeId];
+        setSelectedNodeIds(newSelectedIds);
+        setSelectedNodeId(nodeId);
+      }
     }
 
     const initialPositions: Record<string, { x: number; y: number }> = {};
@@ -639,9 +864,7 @@ export const Workspace: React.FC<WorkspaceProps> = ({
     });
     dragStartPositions.current = initialPositions;
 
-    const initialTargets = selectedNodeIds.includes(nodeId) 
-      ? (selectedNodeIds.includes(nodeId) ? selectedNodeIds : [...selectedNodeIds, nodeId]) 
-      : [nodeId];
+    const initialTargets = newSelectedIds;
     
     const visited = new Set<string>(initialTargets);
     const queue = [...initialTargets];
@@ -670,6 +893,18 @@ export const Workspace: React.FC<WorkspaceProps> = ({
 
   const handleNodeDragMove = (e: React.MouseEvent) => {
     if (!draggedNodeId || readOnly) return;
+    
+    // Clear PC long press timer if user drags
+    const dist = Math.hypot(e.clientX - dragStartPosMouse.current.x, e.clientY - dragStartPosMouse.current.y);
+    if (dist > 5) {
+      if (longPressTimer.current) {
+        clearTimeout(longPressTimer.current);
+        longPressTimer.current = null;
+      }
+    }
+
+    if (longPressActive.current) return;
+
     const pageX = e.clientX;
     const pageY = e.clientY;
     
@@ -712,6 +947,10 @@ export const Workspace: React.FC<WorkspaceProps> = ({
   };
 
   const handleNodeDragEnd = async () => {
+    if (longPressTimer.current) {
+      clearTimeout(longPressTimer.current);
+      longPressTimer.current = null;
+    }
     if (!draggedNodeId || readOnly) return;
     const targets = activeDragIds.current;
 
@@ -737,17 +976,29 @@ export const Workspace: React.FC<WorkspaceProps> = ({
     activeDragIds.current = [];
   };
 
-  // 10. Canvas Pan Gesture Handlers
+  // 10. Canvas Pan & Box Select Gesture Handlers
   const handleCanvasMouseDown = (e: React.MouseEvent) => {
     // Only pan if clicking canvas background or read-only
     if (draggedNodeId) return;
-    setIsPanning(true);
-    panStart.current = { x: e.clientX - panX, y: e.clientY - panY };
 
-    // Clear selection if clicking on the background grid itself
-    if (e.target === e.currentTarget || (e.target as SVGElement).tagName === 'svg') {
-      setSelectedNodeIds([]);
-      setSelectedNodeId(null);
+    // Check if clicking on the background grid itself
+    const isBackground = e.target === e.currentTarget || (e.target as SVGElement).tagName === 'svg';
+    if (!isBackground) return;
+
+    const isBoxSelectTrigger = e.shiftKey || isMultiSelectMode;
+
+    if (isBoxSelectTrigger) {
+      setIsBoxSelecting(true);
+      const rect = e.currentTarget.getBoundingClientRect();
+      const clickX = e.clientX - rect.left;
+      const clickY = e.clientY - rect.top;
+      setBoxSelectStart({ x: clickX, y: clickY });
+      setBoxSelectEnd({ x: clickX, y: clickY });
+      boxSelectInitialIds.current = e.shiftKey ? [...selectedNodeIds] : [];
+    } else {
+      setIsPanning(true);
+      panStart.current = { x: e.clientX - panX, y: e.clientY - panY };
+      panStartClient.current = { x: e.clientX, y: e.clientY };
     }
   };
 
@@ -756,17 +1007,65 @@ export const Workspace: React.FC<WorkspaceProps> = ({
       handleNodeDragMove(e);
       return;
     }
+
+    if (isBoxSelecting && boxSelectStart) {
+      const rect = e.currentTarget.getBoundingClientRect();
+      const currentX = e.clientX - rect.left;
+      const currentY = e.clientY - rect.top;
+      setBoxSelectEnd({ x: currentX, y: currentY });
+
+      // Calculate graph coordinates
+      const xStartGraph = (Math.min(boxSelectStart.x, currentX) - panX) / zoom;
+      const xEndGraph = (Math.max(boxSelectStart.x, currentX) - panX) / zoom;
+      const yStartGraph = (Math.min(boxSelectStart.y, currentY) - panY) / zoom;
+      const yEndGraph = (Math.max(boxSelectStart.y, currentY) - panY) / zoom;
+
+      // Filter nodes inside selection rectangle
+      const insideNodeIds = positionedNodes
+        .filter((node) => isVisibleNode(node.id))
+        .filter((node) => {
+          return (
+            node.x >= xStartGraph &&
+            node.x <= xEndGraph &&
+            node.y >= yStartGraph &&
+            node.y <= yEndGraph
+          );
+        })
+        .map((node) => node.id);
+
+      const uniqueIds = Array.from(new Set([...boxSelectInitialIds.current, ...insideNodeIds]));
+      setSelectedNodeIds(uniqueIds);
+      if (uniqueIds.length > 0) {
+        setSelectedNodeId(uniqueIds[uniqueIds.length - 1]);
+      }
+      return;
+    }
+
     if (!isPanning) return;
     setPanX(e.clientX - panStart.current.x);
     setPanY(e.clientY - panStart.current.y);
   };
 
-  const handleCanvasMouseUp = () => {
+  const handleCanvasMouseUp = (e: React.MouseEvent) => {
     if (draggedNodeId) {
       handleNodeDragEnd();
       return;
     }
+    
+    if (isPanning) {
+      const dist = Math.hypot(e.clientX - panStartClient.current.x, e.clientY - panStartClient.current.y);
+      if (dist < 5 && !isMultiSelectMode) {
+        setSelectedNodeIds([]);
+        setSelectedNodeId(null);
+        setIsDrawerOpen(false);
+        setOpenRadialNodeId(null);
+      }
+    }
+
     setIsPanning(false);
+    setIsBoxSelecting(false);
+    setBoxSelectStart(null);
+    setBoxSelectEnd(null);
   };
 
   // 10b. Mouse Wheel and Trackpad Pinch-to-Zoom Handler
@@ -817,10 +1116,24 @@ export const Workspace: React.FC<WorkspaceProps> = ({
       touchStartCenter.current = { x: centerX, y: centerY };
       touchStartPan.current = { x: panX, y: panY };
     } else if (e.touches.length === 1 && !draggedNodeId) {
-      // Single-finger canvas pan panning
-      setIsPanning(true);
       const touch = e.touches[0];
-      panStart.current = { x: touch.clientX - panX, y: touch.clientY - panY };
+      const isBackground = e.target === e.currentTarget || (e.target as SVGElement).tagName === 'svg';
+
+      if (isBackground && isMultiSelectMode) {
+        // Touch box selection on mobile background!
+        setIsBoxSelecting(true);
+        const rect = e.currentTarget.getBoundingClientRect();
+        const clickX = touch.clientX - rect.left;
+        const clickY = touch.clientY - rect.top;
+        setBoxSelectStart({ x: clickX, y: clickY });
+        setBoxSelectEnd({ x: clickX, y: clickY });
+        boxSelectInitialIds.current = [];
+      } else {
+        // Single-finger canvas pan panning
+        setIsPanning(true);
+        panStart.current = { x: touch.clientX - panX, y: touch.clientY - panY };
+        panStartClient.current = { x: touch.clientX, y: touch.clientY };
+      }
     }
   };
 
@@ -843,6 +1156,38 @@ export const Workspace: React.FC<WorkspaceProps> = ({
       setZoom(newZoom);
       setPanX(centerX - graphX * newZoom);
       setPanY(centerY - graphY * newZoom);
+    } else if (e.touches.length === 1 && isBoxSelecting && boxSelectStart) {
+      e.preventDefault(); // Prevent page pull-down/scroll while box selecting!
+      const touch = e.touches[0];
+      const rect = e.currentTarget.getBoundingClientRect();
+      const currentX = touch.clientX - rect.left;
+      const currentY = touch.clientY - rect.top;
+      setBoxSelectEnd({ x: currentX, y: currentY });
+
+      // Calculate graph coordinates
+      const xStartGraph = (Math.min(boxSelectStart.x, currentX) - panX) / zoom;
+      const xEndGraph = (Math.max(boxSelectStart.x, currentX) - panX) / zoom;
+      const yStartGraph = (Math.min(boxSelectStart.y, currentY) - panY) / zoom;
+      const yEndGraph = (Math.max(boxSelectStart.y, currentY) - panY) / zoom;
+
+      // Filter nodes inside selection rectangle
+      const insideNodeIds = positionedNodes
+        .filter((node) => isVisibleNode(node.id))
+        .filter((node) => {
+          return (
+            node.x >= xStartGraph &&
+            node.x <= xEndGraph &&
+            node.y >= yStartGraph &&
+            node.y <= yEndGraph
+          );
+        })
+        .map((node) => node.id);
+
+      const uniqueIds = Array.from(new Set([...boxSelectInitialIds.current, ...insideNodeIds]));
+      setSelectedNodeIds(uniqueIds);
+      if (uniqueIds.length > 0) {
+        setSelectedNodeId(uniqueIds[uniqueIds.length - 1]);
+      }
     } else if (e.touches.length === 1 && isPanning && !draggedNodeId) {
       const touch = e.touches[0];
       setPanX(touch.clientX - panStart.current.x);
@@ -913,6 +1258,23 @@ export const Workspace: React.FC<WorkspaceProps> = ({
         setDraggedNodeId(null);
       }
     }
+
+    if (isPanning && !isBoxSelecting) {
+      const touch = e.changedTouches[0];
+      if (touch) {
+        const dist = Math.hypot(touch.clientX - panStartClient.current.x, touch.clientY - panStartClient.current.y);
+        if (dist < 8 && !isMultiSelectMode) {
+          setSelectedNodeIds([]);
+          setSelectedNodeId(null);
+          setIsDrawerOpen(false);
+          setOpenRadialNodeId(null);
+        }
+      }
+    }
+
+    setIsBoxSelecting(false);
+    setBoxSelectStart(null);
+    setBoxSelectEnd(null);
 
     if (e.touches.length < 2) {
       touchStartDist.current = null;
@@ -988,7 +1350,7 @@ export const Workspace: React.FC<WorkspaceProps> = ({
       sex: 'M',
       lifeStatus: 'ALIVE',
       traits: [],
-      x: currentX - 100,
+      x: currentX - 130,
       y: currentY - 240
     };
 
@@ -999,7 +1361,7 @@ export const Workspace: React.FC<WorkspaceProps> = ({
       sex: 'F',
       lifeStatus: 'ALIVE',
       traits: [],
-      x: currentX + 100,
+      x: currentX + 130,
       y: currentY - 240
     };
 
@@ -1096,12 +1458,13 @@ export const Workspace: React.FC<WorkspaceProps> = ({
     const sourceNode = nodes.find((n) => n.id === sourceId);
     if (!sourceNode) return;
 
-    // Find parents of the sourceNode (biological, adoptive, or foster)
+    // Find parents of the sourceNode (biological, adoptive, foster, or step)
     const parentEdges = edges.filter(
       (e) =>
         (e.type === 'BIOLOGICAL_PARENT' ||
           e.type === 'ADOPTIVE_PARENT' ||
-          e.type === 'FOSTER_PARENT') &&
+          e.type === 'FOSTER_PARENT' ||
+          e.type === 'STEP_PARENT') &&
         e.target === sourceId
     );
 
@@ -1152,7 +1515,7 @@ export const Workspace: React.FC<WorkspaceProps> = ({
         sex: 'M',
         lifeStatus: 'ALIVE',
         traits: [],
-        x: currentX - 100,
+        x: currentX - 130,
         y: currentY - 240
       };
 
@@ -1163,7 +1526,7 @@ export const Workspace: React.FC<WorkspaceProps> = ({
         sex: 'F',
         lifeStatus: 'ALIVE',
         traits: [],
-        x: currentX + 100,
+        x: currentX + 130,
         y: currentY - 240
       };
 
@@ -1263,6 +1626,8 @@ export const Workspace: React.FC<WorkspaceProps> = ({
 
         setSelectedNodeIds([]);
         setSelectedNodeId(null);
+        setIsDrawerOpen(false);
+        setOpenRadialNodeId(null);
         setCustomModal(null);
         recordHistory(remainingNodes, remainingEdges);
         triggerHapticFeedback('SUCCESS');
@@ -1270,9 +1635,77 @@ export const Workspace: React.FC<WorkspaceProps> = ({
     });
   };
 
+  const openSmartLinkModal = (idA: string, idB: string) => {
+    const nodeA = nodes.find(n => n.id === idA);
+    const nodeB = nodes.find(n => n.id === idB);
+    if (!nodeA || !nodeB) return;
+
+    const lvlA = nodeLevels.current[idA] || 0;
+    const lvlB = nodeLevels.current[idB] || 0;
+
+    let sourceId = idA;
+    let targetId = idB;
+    let defaultType: TreeEdge['type'] = 'FRIEND';
+
+    if (lvlB === lvlA + 1) {
+      sourceId = idA;
+      targetId = idB;
+      defaultType = 'BIOLOGICAL_PARENT';
+    } else if (lvlA === lvlB + 1) {
+      sourceId = idB;
+      targetId = idA;
+      defaultType = 'BIOLOGICAL_PARENT';
+    } else if (lvlA === lvlB) {
+      if ((nodeA.sex === 'M' && nodeB.sex === 'F') || (nodeA.sex === 'F' && nodeB.sex === 'M')) {
+        defaultType = 'SPOUSE';
+      } else {
+        defaultType = 'FRIEND';
+      }
+    } else {
+      defaultType = 'FRIEND';
+    }
+
+    setRelationMode({ sourceId, actionType: 'SOCIAL' });
+    setSocialTargetId(targetId);
+    setSocialType(defaultType);
+  };
+
   const handleAddSocialEdge = async () => {
     if (readOnly || !relationMode || !socialTargetId) return;
     
+    // Align spouse Y coordinates in the database if it's a spousal/partner relationship
+    const isSpousal = ['SPOUSE', 'FIANCE', 'DIVORCED', 'SEPARATED', 'CONSANGUINOUS', 'EX_PARTNER'].includes(socialType);
+    let finalNodesState = nodes;
+    
+    if (isSpousal) {
+      const sourceNode = nodes.find(n => n.id === relationMode.sourceId);
+      const targetNode = nodes.find(n => n.id === socialTargetId);
+      if (sourceNode && targetNode) {
+        let finalY: number | undefined = undefined;
+        if (sourceNode.y !== undefined && targetNode.y !== undefined) {
+          finalY = (sourceNode.y + targetNode.y) / 2;
+        } else if (sourceNode.y !== undefined) {
+          finalY = sourceNode.y;
+        } else if (targetNode.y !== undefined) {
+          finalY = targetNode.y;
+        }
+
+        if (finalY !== undefined) {
+          await db.transaction('rw', [db.nodes], async () => {
+            await db.nodes.update(sourceNode.id, { y: finalY });
+            await db.nodes.update(targetNode.id, { y: finalY });
+          });
+          // Optimistically update React nodes state array so the UI renders instantly aligned
+          finalNodesState = nodes.map(n => {
+            if (n.id === sourceNode.id) return { ...n, y: finalY };
+            if (n.id === targetNode.id) return { ...n, y: finalY };
+            return n;
+          });
+          setNodes(finalNodesState);
+        }
+      }
+    }
+
     const newEdge: TreeEdge = {
       id: `e_soc_${Date.now()}`,
       source: relationMode.sourceId,
@@ -1283,7 +1716,7 @@ export const Workspace: React.FC<WorkspaceProps> = ({
     await db.edges.add(newEdge);
     setRelationMode(null);
     setSocialTargetId('');
-    recordHistory(nodes, [...edges, newEdge]);
+    recordHistory(finalNodesState, [...edges, newEdge]);
   };
 
   const handleDeleteNode = (nodeId: string) => {
@@ -1307,6 +1740,8 @@ export const Workspace: React.FC<WorkspaceProps> = ({
         });
         setSelectedNodeIds((prev) => prev.filter((id) => id !== nodeId));
         setSelectedNodeId(null);
+        setIsDrawerOpen(false);
+        setOpenRadialNodeId(null);
         setCustomModal(null);
         recordHistory(remainingNodes, remainingEdges);
         triggerHapticFeedback('SUCCESS');
@@ -1448,6 +1883,10 @@ export const Workspace: React.FC<WorkspaceProps> = ({
           return isSourceA
             ? `${nodeA.name} is the Foster Parent of ${nodeB.name}`
             : `${nodeB.name} is the Foster Parent of ${nodeA.name}`;
+        case 'STEP_PARENT':
+          return isSourceA
+            ? `${nodeA.name} is the Step Parent of ${nodeB.name}`
+            : `${nodeB.name} is the Step Parent of ${nodeA.name}`;
         case 'FRIEND':
           return 'Friends';
         case 'BEST_FRIEND':
@@ -1467,7 +1906,7 @@ export const Workspace: React.FC<WorkspaceProps> = ({
       }
     }
 
-    // 2. Siblings Check (biological, adoptive, foster)
+    // 2. Siblings Check (biological, adoptive, foster, step)
     const getParents = (nodeId: string) => {
       return edges
         .filter(
@@ -1475,7 +1914,8 @@ export const Workspace: React.FC<WorkspaceProps> = ({
             e.target === nodeId &&
             (e.type === 'BIOLOGICAL_PARENT' ||
               e.type === 'ADOPTIVE_PARENT' ||
-              e.type === 'FOSTER_PARENT')
+              e.type === 'FOSTER_PARENT' ||
+              e.type === 'STEP_PARENT')
         )
         .map((e) => e.source);
     };
@@ -1577,14 +2017,34 @@ export const Workspace: React.FC<WorkspaceProps> = ({
 
   const lodMode = getLoDMode();
 
+  // Dynamic grid background scaling (fades/shrinks as you zoom out to prevent distraction)
+  const dotsOpacity = Math.max(0.015, Math.min(0.18, 0.18 * zoom));
+  const dotsRadius = Math.max(0.6, Math.min(1.5, 1.5 * zoom));
+  const linesOpacity = Math.max(0.008, Math.min(0.08, 0.08 * zoom));
+  const linesStrokeWidth = Math.max(0.3, Math.min(1.0, 1.0 * zoom));
+
   return (
     <div className="workspace-container">
       {/* 1. Control Ribbon Header */}
       <nav className="control-ribbon">
         {/* Back and Title */}
         <div className="brand-wrapper">
-          <button onClick={onBackToHome} className="btn-back">
+          <button 
+            onClick={handleBackToHome} 
+            className="btn-back"
+            onMouseEnter={(e) => handleMouseEnterTooltip(e, 'Return to Home Screen')}
+            onMouseLeave={handleMouseLeaveTooltip}
+          >
             ← Home
+          </button>
+          <button 
+            onClick={() => setIsSettingsOpen(!isSettingsOpen)} 
+            className="btn-back"
+            style={{ marginLeft: '6px', background: 'rgba(171, 178, 191, 0.08)', borderColor: 'rgba(171, 178, 191, 0.2)' }}
+            onMouseEnter={(e) => handleMouseEnterTooltip(e, 'UI Theme & settings')}
+            onMouseLeave={handleMouseLeaveTooltip}
+          >
+            <i className="fa-solid fa-gear"></i>
           </button>
           <div className="hidden md:block">
             <h1 className="brand-title">
@@ -1643,7 +2103,8 @@ export const Workspace: React.FC<WorkspaceProps> = ({
             <button
               onClick={() => setZoom((z) => Math.max(0.2, z - 0.1))}
               className="btn-zoom"
-              title="Zoom Out"
+              onMouseEnter={(e) => handleMouseEnterTooltip(e, 'Zoom Out')}
+              onMouseLeave={handleMouseLeaveTooltip}
             >
               <ZoomOutIcon size={14} />
             </button>
@@ -1653,7 +2114,8 @@ export const Workspace: React.FC<WorkspaceProps> = ({
             <button
               onClick={() => setZoom((z) => Math.min(2.0, z + 0.1))}
               className="btn-zoom"
-              title="Zoom In"
+              onMouseEnter={(e) => handleMouseEnterTooltip(e, 'Zoom In')}
+              onMouseLeave={handleMouseLeaveTooltip}
             >
               <ZoomInIcon size={14} />
             </button>
@@ -1665,7 +2127,8 @@ export const Workspace: React.FC<WorkspaceProps> = ({
               }}
               className="btn-zoom"
               style={{ color: '#56B6C2', borderLeft: '1px solid rgba(171, 178, 191, 0.15)' }}
-              title="Reset View"
+              onMouseEnter={(e) => handleMouseEnterTooltip(e, 'Reset Viewport')}
+              onMouseLeave={handleMouseLeaveTooltip}
             >
               <ResetIcon size={14} />
             </button>
@@ -1678,6 +2141,8 @@ export const Workspace: React.FC<WorkspaceProps> = ({
                 key={m}
                 onClick={() => handleSetViewMode(m)}
                 className={`btn-mode ${lodMode === m ? 'active' : ''}`}
+                onMouseEnter={(e) => handleMouseEnterTooltip(e, `View Mode: ${m.toLowerCase()}`)}
+                onMouseLeave={handleMouseLeaveTooltip}
               >
                 {m}
               </button>
@@ -1859,7 +2324,11 @@ export const Workspace: React.FC<WorkspaceProps> = ({
                   <button
                     disabled={selectedNodeIds.length !== 1}
                     onClick={() => {
-                      if (selectedNodeId) setRelationMode({ sourceId: selectedNodeId, actionType: 'SOCIAL' });
+                      if (selectedNodeId) {
+                        setRelationMode({ sourceId: selectedNodeId, actionType: 'SOCIAL' });
+                        setSocialTargetId('');
+                        setSocialType('FRIEND');
+                      }
                       setIsTopBarActionsOpen(false);
                     }}
                     className="context-menu-item"
@@ -2115,7 +2584,11 @@ export const Workspace: React.FC<WorkspaceProps> = ({
                   <button
                     disabled={selectedNodeIds.length !== 1}
                     onClick={() => {
-                      if (selectedNodeId) setRelationMode({ sourceId: selectedNodeId, actionType: 'SOCIAL' });
+                      if (selectedNodeId) {
+                        setRelationMode({ sourceId: selectedNodeId, actionType: 'SOCIAL' });
+                        setSocialTargetId('');
+                        setSocialType('FRIEND');
+                      }
                       setIsMobileMenuOpen(false);
                     }}
                     className="btn-action-save"
@@ -2255,9 +2728,58 @@ export const Workspace: React.FC<WorkspaceProps> = ({
             canvasY
           });
         }}
-        style={{ userSelect: 'none', WebkitUserSelect: 'none', MozUserSelect: 'none', msUserSelect: 'none' }}
+        style={{ userSelect: 'none', WebkitUserSelect: 'none', MozUserSelect: 'none', msUserSelect: 'none', position: 'relative' }}
       >
+        {/* Render selection box */}
+        {isBoxSelecting && boxSelectStart && boxSelectEnd && (
+          <div
+            style={{
+              position: 'absolute',
+              left: Math.min(boxSelectStart.x, boxSelectEnd.x),
+              top: Math.min(boxSelectStart.y, boxSelectEnd.y),
+              width: Math.abs(boxSelectStart.x - boxSelectEnd.x),
+              height: Math.abs(boxSelectStart.y - boxSelectEnd.y),
+              background: 'rgba(97, 175, 239, 0.12)',
+              border: '1.5px dashed #61AFEF',
+              borderRadius: '4px',
+              pointerEvents: 'none',
+              zIndex: 1000
+            }}
+          />
+        )}
         <svg className="w-full h-full block">
+          <defs>
+            {/* Dots Grid Pattern */}
+            <pattern 
+              id="grid-dots" 
+              width={40 * zoom} 
+              height={40 * zoom} 
+              patternUnits="userSpaceOnUse"
+              patternTransform={`translate(${panX}, ${panY})`}
+            >
+              <circle cx="2" cy="2" r={dotsRadius} fill={`rgba(171, 178, 191, ${dotsOpacity})`} />
+            </pattern>
+            {/* Lines Grid Pattern */}
+            <pattern 
+              id="grid-lines" 
+              width={40 * zoom} 
+              height={40 * zoom} 
+              patternUnits="userSpaceOnUse"
+              patternTransform={`translate(${panX}, ${panY})`}
+            >
+              <path d={`M ${40 * zoom} 0 L 0 0 0 ${40 * zoom}`} fill="none" stroke={`rgba(171, 178, 191, ${linesOpacity})`} strokeWidth={linesStrokeWidth} />
+            </pattern>
+          </defs>
+
+          {backgroundGrid !== 'SOLID' && (
+            <rect 
+              width="100%" 
+              height="100%" 
+              fill={backgroundGrid === 'DOTS' ? 'url(#grid-dots)' : 'url(#grid-lines)'} 
+              pointerEvents="none"
+            />
+          )}
+
           {/* Zoom & Pan Group wrapper */}
           <g transform={`translate(${panX}, ${panY}) scale(${zoom})`}>
             
@@ -2341,7 +2863,8 @@ export const Workspace: React.FC<WorkspaceProps> = ({
                   (e) =>
                     e.type === 'BIOLOGICAL_PARENT' ||
                     e.type === 'ADOPTIVE_PARENT' ||
-                    e.type === 'FOSTER_PARENT'
+                    e.type === 'FOSTER_PARENT' ||
+                    e.type === 'STEP_PARENT'
                 );
 
                 // Map: childId -> Array of parent edges targeting this child
@@ -2433,6 +2956,7 @@ export const Workspace: React.FC<WorkspaceProps> = ({
                           const primaryEdge =
                             cEdges.find((e) => e.type === 'ADOPTIVE_PARENT') ||
                             cEdges.find((e) => e.type === 'FOSTER_PARENT') ||
+                            cEdges.find((e) => e.type === 'STEP_PARENT') ||
                             cEdges[0];
 
                           let dash = 'none';
@@ -2444,6 +2968,9 @@ export const Workspace: React.FC<WorkspaceProps> = ({
                           } else if (primaryEdge.type === 'FOSTER_PARENT') {
                             dash = '2,3';
                             stroke = '#E5C07B';
+                          } else if (primaryEdge.type === 'STEP_PARENT') {
+                            dash = '6,2';
+                            stroke = '#98C379';
                           }
 
                           renderedPaths.push(
@@ -2481,6 +3008,9 @@ export const Workspace: React.FC<WorkspaceProps> = ({
                         } else if (edge.type === 'FOSTER_PARENT') {
                           dash = '2,3';
                           stroke = '#E5C07B';
+                        } else if (edge.type === 'STEP_PARENT') {
+                          dash = '6,2';
+                          stroke = '#98C379';
                         }
 
                         renderedPaths.push(
@@ -2651,10 +3181,7 @@ export const Workspace: React.FC<WorkspaceProps> = ({
                       transform={`translate(${node.x}, ${node.y})`}
                       className="group"
                     >
-                      {/* Selection Aura */}
-                      {isSelected && (
-                        <circle cx="0" cy="0" r={half + 6} fill="none" stroke="#61AFEF" strokeWidth="2.5" strokeDasharray="4,4" className="animate-spin-slow" />
-                      )}
+
 
                       {/* --- A. SYMBOLIC VIEW MODE (zoom < 0.35) --- */}
                       {lodMode === 'SYMBOLIC' && (
@@ -2738,10 +3265,10 @@ export const Workspace: React.FC<WorkspaceProps> = ({
                         <g>
                           {/* SVG ForeignObject nesting a gorgeous mobile/desktop HTML5 layout */}
                           <foreignObject
-                            x="-100"
-                            y="-45"
-                            width="200"
-                            height="90"
+                            x="-108"
+                            y="-53"
+                            width="216"
+                            height="106"
                             onMouseDown={(e) => handleNodeDragStart(e, node.id)}
                             onTouchStart={(e) => handleNodeTouchStart(e, node.id)}
                             onClick={(e) => handleNodeClick(e, node.id)}
@@ -2756,142 +3283,255 @@ export const Workspace: React.FC<WorkspaceProps> = ({
                               });
                             }}
                           >
-                            <div
-                              style={{
-                                background: 'rgba(40, 44, 52, 0.75)',
-                                backdropFilter: 'blur(8px)',
-                                WebkitBackdropFilter: 'blur(8px)',
-                                width: '100%',
-                                height: '100%',
-                                borderRadius: '12px',
-                                border: isSelected ? '1px solid #61AFEF' : '1px solid rgba(255, 255, 255, 0.1)',
-                                padding: '10px',
-                                display: 'flex',
-                                gap: '10px',
-                                alignItems: 'center',
-                                justifyContent: 'space-between',
-                                cursor: 'pointer',
-                                userSelect: 'none',
-                                transition: 'all 0.2s ease',
-                                boxShadow: isSelected ? '0 0 12px rgba(97, 175, 239, 0.3)' : 'none'
+                            <div 
+                              style={{ 
+                                width: '100%', 
+                                height: '100%', 
+                                padding: '8px', 
+                                overflow: 'visible',
+                                boxSizing: 'border-box'
                               }}
                             >
-                              {/* Left Profile image crop container */}
                               <div
                                 style={{
-                                  width: '48px',
-                                  height: '48px',
-                                  overflow: 'hidden',
-                                  flexShrink: 0,
+                                  background: 'rgba(40, 44, 52, 0.75)',
+                                  backdropFilter: 'blur(8px)',
+                                  WebkitBackdropFilter: 'blur(8px)',
+                                  width: '100%',
+                                  height: '100%',
+                                  borderRadius: '12px',
+                                  border: isSelected ? '1px solid #61AFEF' : '1px solid rgba(255, 255, 255, 0.1)',
+                                  padding: '10px',
                                   display: 'flex',
+                                  gap: '10px',
                                   alignItems: 'center',
-                                  justifyContent: 'center',
-                                  border: isSelected ? '2px solid rgba(97, 175, 239, 0.5)' : '2px solid rgba(171, 178, 191, 0.15)',
-                                  borderRadius: node.sex === 'M' ? '4px' : '50%',
-                                  background: 'rgba(0, 0, 0, 0.1)'
+                                  justifyContent: 'space-between',
+                                  cursor: 'pointer',
+                                  userSelect: 'none',
+                                  transition: 'all 0.2s ease',
+                                  boxShadow: isSelected ? '0 0 12px rgba(97, 175, 239, 0.3)' : 'none',
+                                  position: 'relative'
                                 }}
                               >
-                                {nodeImage ? (
-                                  <img src={nodeImage} style={{ width: '100%', height: '100%', objectFit: 'cover' }} alt="" />
-                                ) : (
-                                  <UserIcon size={20} style={{ opacity: 0.3 }} />
+                                {/* Quick Action Hub Trigger Button (Top Right) */}
+                                {isSelected && !readOnly && (
+                                  <button
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      triggerHapticFeedback('TICK');
+                                      setOpenRadialNodeId(openRadialNodeId === node.id ? null : node.id);
+                                    }}
+                                    style={{
+                                      position: 'absolute',
+                                      top: '-8px',
+                                      right: '-8px',
+                                      width: '22px',
+                                      height: '22px',
+                                      borderRadius: '50%',
+                                      background: openRadialNodeId === node.id ? 'var(--color-danger)' : 'var(--color-primary)',
+                                      border: '1.5px solid #1E222B',
+                                      color: '#1E222B',
+                                      display: 'flex',
+                                      alignItems: 'center',
+                                      justifyContent: 'center',
+                                      fontSize: '10px',
+                                      cursor: 'pointer',
+                                      zIndex: 10,
+                                      boxShadow: '0 2px 6px rgba(0,0,0,0.4)',
+                                      fontWeight: 'bold',
+                                      transition: 'transform 0.15s ease'
+                                    }}
+                                    onMouseEnter={(e) => e.currentTarget.style.transform = 'scale(1.15)'}
+                                    onMouseLeave={(e) => e.currentTarget.style.transform = 'scale(1.0)'}
+                                  >
+                                    {openRadialNodeId === node.id ? '×' : '⚡'}
+                                  </button>
+                                )}
+
+                                {/* Left Profile image crop container */}
+                                <div
+                                  style={{
+                                    width: '48px',
+                                    height: '48px',
+                                    overflow: 'hidden',
+                                    flexShrink: 0,
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    justifyContent: 'center',
+                                    border: isSelected ? '2px solid rgba(97, 175, 239, 0.5)' : '2px solid rgba(171, 178, 191, 0.15)',
+                                    borderRadius: node.sex === 'M' ? '4px' : '50%',
+                                    background: 'rgba(0, 0, 0, 0.1)'
+                                  }}
+                                >
+                                  {nodeImage ? (
+                                    <img src={nodeImage} style={{ width: '100%', height: '100%', objectFit: 'cover' }} alt="" />
+                                  ) : (
+                                    <UserIcon size={20} style={{ opacity: 0.3 }} />
+                                  )}
+                                </div>
+   
+                                {/* Info Content */}
+                                <div style={{ flex: 1, minWidth: 0, textAlign: 'left' }}>
+                                  <h4 style={{ fontSize: '11px', fontWeight: 'bold', color: '#ABB2BF', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', lineHeight: 1.3 }}>
+                                    {node.chosenName || node.name}
+                                  </h4>
+                                  <p style={{ fontSize: '9px', color: 'rgba(171, 178, 191, 0.5)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', lineHeight: 1.3 }}>
+                                    {node.job || 'No Title'}
+                                  </p>
+                                  {/* Traits micro-badges */}
+                                  <div style={{ display: 'flex', gap: '4px', marginTop: '4px', overflow: 'hidden' }}>
+                                    {node.traits.slice(0, 2).map((t, idx) => (
+                                      <span
+                                        key={idx}
+                                        style={{
+                                          fontSize: '7px',
+                                          padding: '1px 6px',
+                                          borderRadius: '999px',
+                                          fontWeight: 'bold',
+                                          textTransform: 'uppercase',
+                                          background: t.includes('BRCA1') || t.includes('Hemophilia') ? 'rgba(224, 108, 117, 0.2)' : 'rgba(229, 192, 123, 0.2)',
+                                          color: t.includes('BRCA1') || t.includes('Hemophilia') ? '#E06C75' : '#E5C07B'
+                                        }}
+                                      >
+                                        {t.substring(0, 6)}
+                                      </span>
+                                    ))}
+                                  </div>
+                                </div>
+   
+                                {/* Deceased cross slash indicator */}
+                                {node.lifeStatus === 'DECEASED' && (
+                                  <div style={{
+                                    position: 'absolute',
+                                    inset: 0,
+                                    background: 'rgba(224, 108, 117, 0.1)',
+                                    border: '1px solid rgba(224, 108, 117, 0.4)',
+                                    borderRadius: '12px',
+                                    pointerEvents: 'none',
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    justifyContent: 'center',
+                                    overflow: 'hidden'
+                                  }}>
+                                    <div style={{
+                                      width: '120%',
+                                      height: '2px',
+                                      background: 'rgba(224, 108, 117, 0.4)',
+                                      transform: 'rotate(22deg)'
+                                    }} />
+                                  </div>
                                 )}
                               </div>
-
-                              {/* Info Content */}
-                              <div style={{ flex: 1, minWidth: 0, textAlign: 'left' }}>
-                                <h4 style={{ fontSize: '11px', fontWeight: 'bold', color: '#ABB2BF', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', lineHeight: 1.3 }}>
-                                  {node.chosenName || node.name}
-                                </h4>
-                                <p style={{ fontSize: '9px', color: 'rgba(171, 178, 191, 0.5)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', lineHeight: 1.3 }}>
-                                  {node.job || 'No Title'}
-                                </p>
-                                {/* Traits micro-badges */}
-                                <div style={{ display: 'flex', gap: '4px', marginTop: '4px', overflow: 'hidden' }}>
-                                  {node.traits.slice(0, 2).map((t, idx) => (
-                                    <span
-                                      key={idx}
-                                      style={{
-                                        fontSize: '7px',
-                                        padding: '1px 6px',
-                                        borderRadius: '999px',
-                                        fontWeight: 'bold',
-                                        textTransform: 'uppercase',
-                                        background: t.includes('BRCA1') || t.includes('Hemophilia') ? 'rgba(224, 108, 117, 0.2)' : 'rgba(229, 192, 123, 0.2)',
-                                        color: t.includes('BRCA1') || t.includes('Hemophilia') ? '#E06C75' : '#E5C07B'
-                                      }}
-                                    >
-                                      {t.substring(0, 6)}
-                                    </span>
-                                  ))}
-                                </div>
-                              </div>
-
-                              {/* Deceased cross slash indicator */}
-                              {node.lifeStatus === 'DECEASED' && (
-                                <div style={{
-                                  position: 'absolute',
-                                  inset: 0,
-                                  background: 'rgba(224, 108, 117, 0.1)',
-                                  border: '1px solid rgba(224, 108, 117, 0.4)',
-                                  borderRadius: '12px',
-                                  pointerEvents: 'none',
-                                  display: 'flex',
-                                  alignItems: 'center',
-                                  justifyContent: 'center',
-                                  overflow: 'hidden'
-                                }}>
-                                  <div style={{
-                                    width: '120%',
-                                    height: '2px',
-                                    background: 'rgba(224, 108, 117, 0.4)',
-                                    transform: 'rotate(22deg)'
-                                  }} />
-                                </div>
-                              )}
                             </div>
                           </foreignObject>
+ 
+                          {/* Premium Floating Radial Circle Menu (beside selected node card) */}
+                          {openRadialNodeId === node.id && !readOnly && (
+                            (() => {
+                              const nodeClientX = panX + node.x * zoom;
+                              const showOnLeft = nodeClientX + 240 * zoom > window.innerWidth;
+                              const radialX = showOnLeft ? -228 : 105;
 
-                          {/* Quick Floating Action Rings (appear on selected node) */}
-                          {isSelected && !readOnly && (
-                            <g transform="translate(0, 58)" className="animate-fade-in">
-                              {/* Add Spouse (+) */}
-                              <g
-                                transform="translate(-40, 0)"
-                                style={{ cursor: 'pointer' }}
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  handleQuickAddSpouse(node.id);
-                                }}
-                              >
-                                <circle r="12" className="floating-add-spouse" />
-                                <text textAnchor="middle" dominantBaseline="central" style={{ fill: '#1E222B', fontSize: '10px', fontWeight: '900' }}>+</text>
-                              </g>
-                              {/* Add Parent (^) */}
-                              <g
-                                transform="translate(0, 0)"
-                                style={{ cursor: 'pointer' }}
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  handleQuickAddParent(node.id);
-                                }}
-                              >
-                                <circle r="12" className="floating-add-parent" />
-                                <text textAnchor="middle" dominantBaseline="central" style={{ fill: '#1E222B', fontSize: '10px', fontWeight: '900' }}>^</text>
-                              </g>
-                              {/* Connect Social Network (Link) */}
-                              <g
-                                transform="translate(40, 0)"
-                                style={{ cursor: 'pointer' }}
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  setRelationMode({ sourceId: node.id, actionType: 'SOCIAL' });
-                                }}
-                              >
-                                <circle r="12" className="floating-add-social" />
-                                <text textAnchor="middle" dominantBaseline="central" style={{ fill: '#1E222B', fontSize: '8px', fontWeight: '900' }}>🔗</text>
-                              </g>
-                            </g>
+                              return (
+                                <foreignObject
+                                  x={radialX}
+                                  y="-60"
+                                  width="120"
+                                  height="120"
+                                  className="animate-fade-in"
+                                  style={{ overflow: 'visible', pointerEvents: 'none' }}
+                                >
+                                  <div 
+                                    className="radial-menu-wrapper" 
+                                    style={{ 
+                                      fontFamily: 'sans-serif',
+                                      justifyContent: showOnLeft ? 'flex-end' : 'flex-start'
+                                    }}
+                                  >
+                                    {/* Option Buttons fanning out around the hub */}
+                                    <button
+                                      className="radial-option-circle spouse"
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        handleQuickAddSpouse(node.id);
+                                        setOpenRadialNodeId(null);
+                                      }}
+                                      style={showOnLeft ? { left: 'auto', right: '2px', transform: 'translate(-8px, -45px)' } : {}}
+                                      title="Add Spouse / Partner"
+                                    >
+                                      <i className="fa-solid fa-heart"></i>
+                                    </button>
+                                    
+                                    <button
+                                      className="radial-option-circle child"
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        handleQuickAddChild(node.id);
+                                        setOpenRadialNodeId(null);
+                                      }}
+                                      style={showOnLeft ? { left: 'auto', right: '2px', transform: 'translate(-35px, -30px)' } : {}}
+                                      title="Add Child"
+                                    >
+                                      <i className="fa-solid fa-baby"></i>
+                                    </button>
+                                    
+                                    <button
+                                      className="radial-option-circle sibling"
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        handleQuickAddSibling(node.id);
+                                        setOpenRadialNodeId(null);
+                                      }}
+                                      style={showOnLeft ? { left: 'auto', right: '2px', transform: 'translate(-46px, 0px)' } : {}}
+                                      title="Add Sibling"
+                                    >
+                                      <i className="fa-solid fa-users"></i>
+                                    </button>
+                                    
+                                    <button
+                                      className="radial-option-circle parent"
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        handleQuickAddParent(node.id);
+                                        setOpenRadialNodeId(null);
+                                      }}
+                                      style={showOnLeft ? { left: 'auto', right: '2px', transform: 'translate(-35px, 30px)' } : {}}
+                                      title="Add Parents"
+                                    >
+                                      <i className="fa-solid fa-people-roof"></i>
+                                    </button>
+                                    
+                                    <button
+                                      className="radial-option-circle social"
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        setRelationMode({ sourceId: node.id, actionType: 'SOCIAL' });
+                                        setSocialTargetId('');
+                                        setSocialType('FRIEND');
+                                        setOpenRadialNodeId(null);
+                                      }}
+                                      style={showOnLeft ? { left: 'auto', right: '2px', transform: 'translate(-8px, 45px)' } : {}}
+                                      title="Connect Social Network"
+                                    >
+                                      <i className="fa-solid fa-link"></i>
+                                    </button>
+
+                                    {/* Central Action Hub */}
+                                    <div 
+                                      className="radial-menu-hub" 
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        setOpenRadialNodeId(null);
+                                      }}
+                                      style={showOnLeft ? { left: 'auto', right: '2px' } : {}}
+                                      title="Close Menu"
+                                    >
+                                      <i className="fa-solid fa-bolt" style={{ fontSize: '11px' }}></i>
+                                    </div>
+                                  </div>
+                                </foreignObject>
+                              );
+                            })()
                           )}
                         </g>
                       )}
@@ -2903,14 +3543,217 @@ export const Workspace: React.FC<WorkspaceProps> = ({
         </svg>
       </div>
 
+      {/* 4b. Global UI Settings Drawer Panel */}
+      <AnimatePresence>
+        {isSettingsOpen && (
+          <motion.div
+            initial={isMobile ? { y: '100%', x: 0 } : { x: '100%', y: 0 }}
+            animate={{ x: 0, y: 0 }}
+            exit={isMobile ? { y: '100%', x: 0 } : { x: '100%', y: 0 }}
+            transition={drawerTransition}
+            className="sliding-drawer"
+            style={{ 
+              left: isMobile ? 0 : 'auto', 
+              right: 0,
+              borderLeft: '1px solid rgba(171, 178, 191, 0.15)',
+              background: 'rgba(33, 37, 43, 0.96)',
+              backdropFilter: 'blur(20px)'
+            }}
+          >
+            {/* Visual Drag Handle for Mobile Viewports */}
+            <div className="drawer-drag-handle" />
+
+            <div className="drawer-header">
+              <h3 className="drawer-title" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <i className="fa-solid fa-gear"></i> Global UI Settings
+              </h3>
+              <button
+                onClick={() => setIsSettingsOpen(false)}
+                className="drawer-close"
+              >
+                ×
+              </button>
+            </div>
+
+            <div className="drawer-form" style={{ padding: '20px', overflowY: 'auto', flex: 1 }}>
+              {/* Theme Selector */}
+              <div className="field-group">
+                <label className="field-label" style={{ color: '#E5C07B', fontWeight: 'bold' }}>UI Color Theme (Solid Only)</label>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px', marginTop: '8px' }}>
+                  {[
+                    { id: 'ONE_DARK', label: 'One Dark Saturated', bg: '#181A1F', border: '#4CB2FF' },
+                    { id: 'CHARCOAL', label: 'Charcoal Minimal', bg: '#121212', border: '#9E9E9E' },
+                    { id: 'SLATE', label: 'Slate Corporate', bg: '#1E2530', border: '#607D8B' },
+                    { id: 'MATRIX', label: 'Matrix Terminal', bg: '#000000', border: '#00FF00' }
+                  ].map((t) => (
+                    <button
+                      key={t.id}
+                      onClick={() => setTheme(t.id)}
+                      style={{
+                        background: t.bg,
+                        border: theme === t.id ? `2px solid ${t.border}` : '1.5px solid rgba(255,255,255,0.1)',
+                        borderRadius: '8px',
+                        padding: '12px',
+                        color: theme === t.id ? '#FFFFFF' : '#ABB2BF',
+                        cursor: 'pointer',
+                        textAlign: 'center',
+                        fontSize: '11px',
+                        fontWeight: 'bold',
+                        transition: 'all 0.2s ease'
+                      }}
+                    >
+                      {t.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Font Size Selector */}
+              <div className="field-group" style={{ marginTop: '20px' }}>
+                <label className="field-label" style={{ color: '#E5C07B', fontWeight: 'bold' }}>Base Font Size Scale: {fontSize}px</label>
+                <input
+                  type="range"
+                  min="12"
+                  max="20"
+                  step="1"
+                  value={fontSize}
+                  onChange={(e) => setFontSize(parseInt(e.target.value))}
+                  style={{
+                    width: '100%',
+                    accentColor: 'var(--color-primary)',
+                    background: 'rgba(255,255,255,0.1)',
+                    height: '6px',
+                    borderRadius: '3px',
+                    marginTop: '10px',
+                    cursor: 'pointer'
+                  }}
+                />
+                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '9px', color: 'rgba(171, 178, 191, 0.5)', marginTop: '4px' }}>
+                  <span>Small (12px)</span>
+                  <span>Medium (14px)</span>
+                  <span>Large (16px)</span>
+                  <span>Extra Large (20px)</span>
+                </div>
+              </div>
+
+              {/* Grid Background Selector */}
+              <div className="field-group" style={{ marginTop: '20px' }}>
+                <label className="field-label" style={{ color: '#E5C07B', fontWeight: 'bold' }}>Canvas Grid Background</label>
+                <div style={{ display: 'flex', gap: '8px', marginTop: '8px' }}>
+                  {[
+                    { id: 'DOTS', label: 'Dots Grid' },
+                    { id: 'LINES', label: 'Lines Grid' },
+                    { id: 'SOLID', label: 'Solid Underlay' }
+                  ].map((g) => (
+                    <button
+                      key={g.id}
+                      onClick={() => setBackgroundGrid(g.id)}
+                      style={{
+                        flex: 1,
+                        background: 'rgba(171,178,191,0.06)',
+                        border: backgroundGrid === g.id ? '1.5px solid var(--color-primary)' : '1.5px solid transparent',
+                        borderRadius: '8px',
+                        padding: '10px 6px',
+                        color: backgroundGrid === g.id ? 'var(--color-primary)' : '#ABB2BF',
+                        fontSize: '11px',
+                        fontWeight: 'bold',
+                        cursor: 'pointer',
+                        transition: 'all 0.2s ease'
+                      }}
+                    >
+                      {g.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Performance Mode Selector */}
+              <div className="field-group" style={{ marginTop: '20px' }}>
+                <label className="field-label" style={{ color: '#E5C07B', fontWeight: 'bold' }}>Performance Settings</label>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: '10px', padding: '12px 14px', background: 'rgba(255,255,255,0.02)', borderRadius: '10px', border: '1px solid rgba(255,255,255,0.05)' }}>
+                  <div>
+                    <h5 style={{ fontSize: '12px', fontWeight: 'bold', color: '#ABB2BF' }}>High Framerate (Low CPU Mode)</h5>
+                    <p style={{ fontSize: '9px', color: 'rgba(171, 178, 191, 0.45)', marginTop: '2px' }}>Disable spring motions & blurs to run smoothly on older devices.</p>
+                  </div>
+                  <button
+                    onClick={() => setPerfMode(!perfMode)}
+                    style={{
+                      background: perfMode ? 'var(--color-success)' : 'rgba(255,255,255,0.1)',
+                      border: 'none',
+                      borderRadius: '20px',
+                      width: '44px',
+                      height: '24px',
+                      position: 'relative',
+                      cursor: 'pointer',
+                      transition: 'background 0.2s ease'
+                    }}
+                  >
+                    <div
+                      style={{
+                        width: '18px',
+                        height: '18px',
+                        borderRadius: '50%',
+                        background: '#FFFFFF',
+                        position: 'absolute',
+                        top: '3px',
+                        left: perfMode ? '23px' : '3px',
+                        transition: 'left 0.2s ease',
+                        boxShadow: '0 2px 4px rgba(0,0,0,0.3)'
+                      }}
+                    />
+                  </button>
+                </div>
+              </div>
+
+              {/* Clear Sandbox Data */}
+              <div className="field-group" style={{ marginTop: '30px', borderTop: '1px solid rgba(255,255,255,0.08)', paddingTop: '20px' }}>
+                <button
+                  onClick={async () => {
+                    setCustomModal({
+                      isOpen: true,
+                      title: 'Reset Sandbox Data',
+                      message: 'Are you sure you want to delete all pedigree data? This will clear all nodes, edges, and images from this browser database permanently.',
+                      type: 'CONFIRM',
+                      onConfirm: async () => {
+                        await db.transaction('rw', [db.nodes, db.edges, db.images], async () => {
+                          await db.nodes.clear();
+                          await db.edges.clear();
+                          await db.images.clear();
+                        });
+                        window.location.reload();
+                      }
+                    });
+                  }}
+                  style={{
+                    width: '100%',
+                    background: 'rgba(224, 108, 117, 0.12)',
+                    border: '1px solid rgba(224, 108, 117, 0.3)',
+                    borderRadius: '8px',
+                    padding: '12px',
+                    color: '#E06C75',
+                    fontSize: '12px',
+                    fontWeight: 'bold',
+                    cursor: 'pointer',
+                    transition: 'all 0.2s ease'
+                  }}
+                >
+                  <i className="fa-solid fa-trash-can" style={{ marginRight: '6px' }}></i> Reset Sandbox Database
+                </button>
+              </div>
+
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
       {/* 4. Side-Sliding Metadata Inspector Drawer Panel */}
       <AnimatePresence>
-        {activeNodeInInspector && (
+        {isDrawerOpen && activeNodeInInspector && (
           <motion.div
             initial={{ x: '100%' }}
             animate={{ x: 0 }}
             exit={{ x: '100%' }}
-            transition={{ type: 'spring', damping: 24, stiffness: 220 }}
+            transition={drawerTransition}
             className="sliding-drawer"
             onTouchStart={(e) => {
               drawerTouchStart.current = e.touches[0].clientX;
@@ -2920,6 +3763,7 @@ export const Workspace: React.FC<WorkspaceProps> = ({
               const deltaX = e.touches[0].clientX - drawerTouchStart.current;
               if (deltaX > 120) {
                 setSelectedNodeId(null);
+                setIsDrawerOpen(false);
                 drawerTouchStart.current = null;
               }
             }}
@@ -2934,7 +3778,10 @@ export const Workspace: React.FC<WorkspaceProps> = ({
                 <h3>Inspector Panel</h3>
               </div>
               <button
-                onClick={() => setSelectedNodeId(null)}
+                onClick={() => {
+                  setSelectedNodeId(null);
+                  setIsDrawerOpen(false);
+                }}
                 className="drawer-close"
               >
                 <CloseIcon size={18} />
@@ -3152,6 +3999,8 @@ export const Workspace: React.FC<WorkspaceProps> = ({
                       <button
                         onClick={() => {
                           setRelationMode({ sourceId: activeNodeInInspector.id, actionType: 'SOCIAL' });
+                          setSocialTargetId('');
+                          setSocialType('FRIEND');
                           setIsInspectorActionsOpen(false);
                         }}
                         className="context-menu-item"
@@ -3417,6 +4266,7 @@ export const Workspace: React.FC<WorkspaceProps> = ({
                   <option value="BIOLOGICAL_PARENT">Parent (Biological)</option>
                   <option value="ADOPTIVE_PARENT">Parent (Adoptive)</option>
                   <option value="FOSTER_PARENT">Parent (Foster)</option>
+                  <option value="STEP_PARENT">Parent (Step)</option>
                   <option value="DIVORCED">Divorced</option>
                   <option value="FIANCE">Fiancé / Engaged</option>
                   <option value="SEPARATED">Separated</option>
@@ -3611,7 +4461,12 @@ export const Workspace: React.FC<WorkspaceProps> = ({
                 </span>
               </div>
               <button
-                onClick={() => setSelectedNodeIds([])}
+                onClick={() => {
+                  setSelectedNodeIds([]);
+                  setSelectedNodeId(null);
+                  setIsDrawerOpen(false);
+                  setOpenRadialNodeId(null);
+                }}
                 style={{
                   background: 'none',
                   border: 'none',
@@ -3683,8 +4538,7 @@ export const Workspace: React.FC<WorkspaceProps> = ({
                   return (
                     <button
                       onClick={() => {
-                        setRelationMode({ sourceId: idA, actionType: 'SOCIAL' });
-                        setSocialTargetId(idB);
+                        openSmartLinkModal(idA, idB);
                       }}
                       style={{
                         flex: 1,
@@ -3721,6 +4575,7 @@ export const Workspace: React.FC<WorkspaceProps> = ({
               initial={{ scale: 0.95, opacity: 0 }}
               animate={{ scale: 1, opacity: 1 }}
               exit={{ scale: 0.95, opacity: 0 }}
+              transition={modalTransition}
               className="modal-content"
               style={{
                 maxWidth: '420px',
@@ -3735,7 +4590,7 @@ export const Workspace: React.FC<WorkspaceProps> = ({
                   alignItems: 'center',
                   gap: '8px'
                 }}>
-                  {customModal.type === 'CONFIRM' ? '⚠️' : 'ℹ️'} {customModal.title}
+                  {customModal.type === 'CONFIRM' ? <i className="fa-solid fa-triangle-exclamation"></i> : <i className="fa-solid fa-circle-info"></i>} {customModal.title}
                 </h3>
                 <button
                   onClick={() => setCustomModal(null)}
@@ -3793,6 +4648,7 @@ export const Workspace: React.FC<WorkspaceProps> = ({
               initial={{ scale: 0.95, opacity: 0 }}
               animate={{ scale: 1, opacity: 1 }}
               exit={{ scale: 0.95, opacity: 0 }}
+              transition={modalTransition}
               className="modal-content"
               style={{
                 maxWidth: '440px',
@@ -3802,7 +4658,7 @@ export const Workspace: React.FC<WorkspaceProps> = ({
             >
               <div className="modal-header">
                 <h3 className="modal-title" style={{ color: '#61AFEF', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                  📷 Capture Avatar Photo
+                  <i className="fa-solid fa-camera"></i> Capture Avatar Photo
                 </h3>
                 <button
                   onClick={handleCloseCameraModal}
@@ -3902,7 +4758,7 @@ export const Workspace: React.FC<WorkspaceProps> = ({
                   }}
                   className="context-menu-item"
                 >
-                  📝 Edit Details
+                  <i className="fa-solid fa-pen-to-square" style={{ marginRight: '8px' }}></i> Edit Details
                 </button>
                 <div className="context-menu-divider" />
                 <button
@@ -3912,7 +4768,7 @@ export const Workspace: React.FC<WorkspaceProps> = ({
                   }}
                   className="context-menu-item"
                 >
-                  ➕ Add Spouse
+                  <i className="fa-solid fa-heart" style={{ marginRight: '8px', color: '#98C379' }}></i> Add Spouse
                 </button>
                 <button
                   onClick={() => {
@@ -3921,7 +4777,7 @@ export const Workspace: React.FC<WorkspaceProps> = ({
                   }}
                   className="context-menu-item"
                 >
-                  ▲ Add Parents
+                  <i className="fa-solid fa-people-roof" style={{ marginRight: '8px', color: '#61AFEF' }}></i> Add Parents
                 </button>
                 <button
                   onClick={() => {
@@ -3930,7 +4786,7 @@ export const Workspace: React.FC<WorkspaceProps> = ({
                   }}
                   className="context-menu-item"
                 >
-                  ▼ Add Child
+                  <i className="fa-solid fa-baby" style={{ marginRight: '8px', color: '#C678DD' }}></i> Add Child
                 </button>
                 <button
                   onClick={() => {
@@ -3939,16 +4795,20 @@ export const Workspace: React.FC<WorkspaceProps> = ({
                   }}
                   className="context-menu-item"
                 >
-                  👥 Add Sibling
+                  <i className="fa-solid fa-users" style={{ marginRight: '8px', color: '#D19A66' }}></i> Add Sibling
                 </button>
                 <button
                   onClick={() => {
-                    if (contextMenu.nodeId) setRelationMode({ sourceId: contextMenu.nodeId, actionType: 'SOCIAL' });
+                    if (contextMenu.nodeId) {
+                      setRelationMode({ sourceId: contextMenu.nodeId, actionType: 'SOCIAL' });
+                      setSocialTargetId('');
+                      setSocialType('FRIEND');
+                    }
                     setContextMenu(null);
                   }}
                   className="context-menu-item"
                 >
-                  🔗 Link Social Network
+                  <i className="fa-solid fa-link" style={{ marginRight: '8px', color: '#56B6C2' }}></i> Link Social Network
                 </button>
                 <div className="context-menu-divider" />
                 <button
@@ -3958,7 +4818,7 @@ export const Workspace: React.FC<WorkspaceProps> = ({
                   }}
                   className="context-menu-item"
                 >
-                  🗎 Copy Card
+                  <i className="fa-solid fa-copy" style={{ marginRight: '8px' }}></i> Copy Card
                 </button>
                 <div className="context-menu-divider" />
                 <button
@@ -3969,7 +4829,7 @@ export const Workspace: React.FC<WorkspaceProps> = ({
                   className="context-menu-item"
                   style={{ color: '#E06C75' }}
                 >
-                  🗑️ Delete Person
+                  <i className="fa-solid fa-trash-can" style={{ marginRight: '8px' }}></i> Delete Person
                 </button>
               </>
             ) : (
@@ -3987,7 +4847,7 @@ export const Workspace: React.FC<WorkspaceProps> = ({
                   }}
                   className="context-menu-item"
                 >
-                  👤 Add Person Here
+                  <i className="fa-solid fa-user" style={{ marginRight: '8px' }}></i> Add Person Here
                 </button>
                 <button
                   disabled={copiedNodes.current.length === 0}
@@ -3997,7 +4857,7 @@ export const Workspace: React.FC<WorkspaceProps> = ({
                   }}
                   className="context-menu-item"
                 >
-                  📋 Paste Copied ({copiedNodes.current.length})
+                  <i className="fa-solid fa-paste" style={{ marginRight: '8px' }}></i> Paste Copied ({copiedNodes.current.length})
                 </button>
                 <div className="context-menu-divider" />
                 <button
@@ -4009,7 +4869,7 @@ export const Workspace: React.FC<WorkspaceProps> = ({
                   }}
                   className="context-menu-item"
                 >
-                  🎯 Reset Viewport
+                  <i className="fa-solid fa-crosshairs" style={{ marginRight: '8px' }}></i> Reset Viewport
                 </button>
                 <div className="context-menu-divider" />
                 <button
@@ -4019,7 +4879,7 @@ export const Workspace: React.FC<WorkspaceProps> = ({
                   }}
                   className="context-menu-item"
                 >
-                  ↩ Undo (Ctrl+Z)
+                  <i className="fa-solid fa-arrow-rotate-left" style={{ marginRight: '8px' }}></i> Undo (Ctrl+Z)
                 </button>
                 <button
                   onClick={() => {
@@ -4028,7 +4888,7 @@ export const Workspace: React.FC<WorkspaceProps> = ({
                   }}
                   className="context-menu-item"
                 >
-                  ↪ Redo (Ctrl+Y)
+                  <i className="fa-solid fa-arrow-rotate-right" style={{ marginRight: '8px' }}></i> Redo (Ctrl+Y)
                 </button>
               </>
             )}
@@ -4036,96 +4896,390 @@ export const Workspace: React.FC<WorkspaceProps> = ({
         )}
       </AnimatePresence>
 
+      {/* 8b. Mobile Relation Selection Bottom Sheet */}
+      <AnimatePresence>
+        {isMobile && showMobileRelationSheet && selectedNodeId && (
+          <div 
+            className="mobile-sheet-overlay" 
+            style={{ zIndex: 12000 }}
+            onClick={() => setShowMobileRelationSheet(false)}
+          >
+            <motion.div
+              initial={{ y: '100%' }}
+              animate={{ y: 0 }}
+              exit={{ y: '100%' }}
+              transition={{ type: 'spring', damping: 24, stiffness: 220 }}
+              className="mobile-sheet-content"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="mobile-sheet-header">
+                <h3 className="mobile-sheet-title">
+                  <i className="fa-solid fa-circle-nodes" style={{ color: '#61AFEF', marginRight: '6px' }}></i>
+                  <span>Add Relationship</span>
+                </h3>
+                <button 
+                  onClick={() => setShowMobileRelationSheet(false)} 
+                  className="mobile-sheet-close"
+                >
+                  ×
+                </button>
+              </div>
+
+              <div className="relation-selection-grid">
+                {/* Spouse option */}
+                <div 
+                  className="relation-option-card spouse"
+                  onClick={() => {
+                    handleQuickAddSpouse(selectedNodeId);
+                    setShowMobileRelationSheet(false);
+                  }}
+                >
+                  <div className="relation-option-icon">
+                    <i className="fa-solid fa-heart"></i>
+                  </div>
+                  <div className="relation-option-info">
+                    <h4>Add Spouse / Partner</h4>
+                    <p>Create and link a husband, wife, or life partner.</p>
+                  </div>
+                </div>
+
+                {/* Parents option */}
+                <div 
+                  className="relation-option-card parents"
+                  onClick={() => {
+                    handleQuickAddParent(selectedNodeId);
+                    setShowMobileRelationSheet(false);
+                  }}
+                >
+                  <div className="relation-option-icon">
+                    <i className="fa-solid fa-people-roof"></i>
+                  </div>
+                  <div className="relation-option-info">
+                    <h4>Add Parents</h4>
+                    <p>Create biological mother & father cards linked to child.</p>
+                  </div>
+                </div>
+
+                {/* Child option */}
+                <div 
+                  className="relation-option-card child"
+                  onClick={() => {
+                    handleQuickAddChild(selectedNodeId);
+                    setShowMobileRelationSheet(false);
+                  }}
+                >
+                  <div className="relation-option-icon">
+                    <i className="fa-solid fa-baby"></i>
+                  </div>
+                  <div className="relation-option-info">
+                    <h4>Add Child</h4>
+                    <p>Create and link a son or daughter in the generation below.</p>
+                  </div>
+                </div>
+
+                {/* Sibling option */}
+                <div 
+                  className="relation-option-card sibling"
+                  onClick={() => {
+                    handleQuickAddSibling(selectedNodeId);
+                    setShowMobileRelationSheet(false);
+                  }}
+                >
+                  <div className="relation-option-icon">
+                    <i className="fa-solid fa-users"></i>
+                  </div>
+                  <div className="relation-option-info">
+                    <h4>Add Sibling</h4>
+                    <p>Create a brother or sister sharing the same parent cohort.</p>
+                  </div>
+                </div>
+
+                {/* Social Network option */}
+                <div 
+                  className="relation-option-card social"
+                  onClick={() => {
+                    setRelationMode({ sourceId: selectedNodeId, actionType: 'SOCIAL' });
+                    setSocialTargetId('');
+                    setSocialType('FRIEND');
+                    setShowMobileRelationSheet(false);
+                  }}
+                >
+                  <div className="relation-option-icon">
+                    <i className="fa-solid fa-link"></i>
+                  </div>
+                  <div className="relation-option-info">
+                    <h4>Connect Social Network</h4>
+                    <p>Establish interpersonal connections (Friend, Neighbor, Coworker, etc.).</p>
+                  </div>
+                </div>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
       {/* 9. Accessible Floating Action Toolbar */}
       {!readOnly && (
         <div className="floating-action-toolbar">
-          <button
-            onClick={() => handleAddIndependentNode(
-              (window.innerWidth / 2 - panX) / zoom,
-              (window.innerHeight / 2 - panY) / zoom
-            )}
-            className="toolbar-btn"
-            title="Add independent person at viewport center"
-          >
-            <span style={{ fontSize: '18px' }}>👤</span>
-            <span>+ Person</span>
-          </button>
-          
-          <div className="toolbar-divider" />
+          {isMobile ? (
+            /* Mobile Compact layout */
+            <>
+              <button
+                onClick={() => setIsMultiSelectMode(!isMultiSelectMode)}
+                className={`toolbar-btn ${isMultiSelectMode ? 'active-primary' : ''}`}
+              >
+                <span style={{ fontSize: '18px' }}><i className="fa-solid fa-list-check"></i></span>
+                <span>Multi</span>
+              </button>
+              
+              <div className="toolbar-divider" />
 
-          <button
-            disabled={selectedNodeIds.length !== 1}
-            onClick={() => {
-              if (selectedNodeId) handleQuickAddSpouse(selectedNodeId);
-            }}
-            className={`toolbar-btn ${selectedNodeIds.length === 1 ? 'active-success' : ''}`}
-            title="Add spouse/partner to selected person"
-          >
-            <span style={{ fontSize: '18px' }}>👩‍❤️‍👨</span>
-            <span>+ Spouse</span>
-          </button>
+              <button
+                onClick={() => handleAddIndependentNode(
+                  (window.innerWidth / 2 - panX) / zoom,
+                  (window.innerHeight / 2 - panY) / zoom
+                )}
+                className="toolbar-btn"
+              >
+                <span style={{ fontSize: '18px' }}><i className="fa-solid fa-user-plus"></i></span>
+                <span>+ Person</span>
+              </button>
 
-          <button
-            disabled={selectedNodeIds.length !== 1}
-            onClick={() => {
-              if (selectedNodeId) handleQuickAddParent(selectedNodeId);
-            }}
-            className={`toolbar-btn ${selectedNodeIds.length === 1 ? 'active-primary' : ''}`}
-            title="Add father & mother to selected person"
-          >
-            <span style={{ fontSize: '18px' }}>👪</span>
-            <span>+ Parents</span>
-          </button>
+              <div className="toolbar-divider" />
 
-          <button
-            disabled={selectedNodeIds.length !== 1}
-            onClick={() => {
-              if (selectedNodeId) handleQuickAddChild(selectedNodeId);
-            }}
-            className={`toolbar-btn ${selectedNodeIds.length === 1 ? 'active-purple' : ''}`}
-            title="Add child to selected person"
-          >
-            <span style={{ fontSize: '18px' }}>👶</span>
-            <span>+ Child</span>
-          </button>
+              {selectedNodeIds.length === 2 ? (
+                <button
+                  onClick={() => {
+                    const idA = selectedNodeIds[0];
+                    const idB = selectedNodeIds[1];
+                    openSmartLinkModal(idA, idB);
+                  }}
+                  className="toolbar-btn active-success"
+                >
+                  <span style={{ fontSize: '18px' }}><i className="fa-solid fa-link"></i></span>
+                  <span>Link</span>
+                </button>
+              ) : (
+                <button
+                  disabled={selectedNodeIds.length !== 1}
+                  onClick={() => setShowMobileRelationSheet(true)}
+                  className={`toolbar-btn ${selectedNodeIds.length === 1 ? 'active-orange' : ''}`}
+                >
+                  <span style={{ fontSize: '18px' }}><i className="fa-solid fa-circle-nodes"></i></span>
+                  <span>Relation</span>
+                </button>
+              )}
 
-          <button
-            disabled={selectedNodeIds.length !== 1}
-            onClick={() => {
-              if (selectedNodeId) handleQuickAddSibling(selectedNodeId);
-            }}
-            className={`toolbar-btn ${selectedNodeIds.length === 1 ? 'active-orange' : ''}`}
-            title="Add sibling to selected person"
-          >
-            <span style={{ fontSize: '18px' }}>👥</span>
-            <span>+ Sibling</span>
-          </button>
+              {selectedNodeIds.length > 0 && (
+                <>
+                  <div className="toolbar-divider" />
+                  <button
+                    onClick={() => {
+                      setSelectedNodeIds([]);
+                      setSelectedNodeId(null);
+                      setIsDrawerOpen(false);
+                      setOpenRadialNodeId(null);
+                    }}
+                    className="toolbar-btn active-orange"
+                  >
+                    <span style={{ fontSize: '18px' }}><i className="fa-solid fa-square-minus"></i></span>
+                    <span>Clear</span>
+                  </button>
+                </>
+              )}
 
-          <button
-            disabled={selectedNodeIds.length !== 1}
-            onClick={() => {
-              if (selectedNodeId) setRelationMode({ sourceId: selectedNodeId, actionType: 'SOCIAL' });
-            }}
-            className={`toolbar-btn ${selectedNodeIds.length === 1 ? 'active-primary' : ''}`}
-            title="Connect social relationship line"
-          >
-            <span style={{ fontSize: '18px' }}>🔗</span>
-            <span>Social</span>
-          </button>
+              <div className="toolbar-divider" />
 
-          <div className="toolbar-divider" />
+              <button
+                disabled={selectedNodeIds.length === 0}
+                onClick={handleDeleteSelectedNodes}
+                className={`toolbar-btn ${selectedNodeIds.length > 0 ? 'active-danger' : ''}`}
+              >
+                <span style={{ fontSize: '18px' }}><i className="fa-solid fa-trash-can"></i></span>
+                <span>Delete</span>
+              </button>
+            </>
+          ) : (
+            /* Desktop Full Layout */
+            <>
+              <button
+                onClick={() => setIsMultiSelectMode(!isMultiSelectMode)}
+                className={`toolbar-btn ${isMultiSelectMode ? 'active-primary' : ''}`}
+                onMouseEnter={(e) => handleMouseEnterTooltip(e, 'Toggle multi-select mode')}
+                onMouseLeave={handleMouseLeaveTooltip}
+              >
+                <span style={{ fontSize: '18px' }}><i className="fa-solid fa-list-check"></i></span>
+                <span>Multi</span>
+              </button>
 
-          <button
-            disabled={selectedNodeIds.length === 0}
-            onClick={handleDeleteSelectedNodes}
-            className={`toolbar-btn ${selectedNodeIds.length > 0 ? 'active-danger' : ''}`}
-            title="Delete selected person(s) and all connections"
-          >
-            <span style={{ fontSize: '18px' }}>🗑️</span>
-            <span>Delete</span>
-          </button>
+              <div className="toolbar-divider" />
+
+              <button
+                onClick={() => handleAddIndependentNode(
+                  (window.innerWidth / 2 - panX) / zoom,
+                  (window.innerHeight / 2 - panY) / zoom
+                )}
+                className="toolbar-btn"
+                onMouseEnter={(e) => handleMouseEnterTooltip(e, 'Add independent person')}
+                onMouseLeave={handleMouseLeaveTooltip}
+              >
+                <span style={{ fontSize: '18px' }}><i className="fa-solid fa-user"></i></span>
+                <span>+ Person</span>
+              </button>
+              
+              <div className="toolbar-divider" />
+
+              {selectedNodeIds.length === 2 ? (
+                <button
+                  onClick={() => {
+                    const idA = selectedNodeIds[0];
+                    const idB = selectedNodeIds[1];
+                    openSmartLinkModal(idA, idB);
+                  }}
+                  className="toolbar-btn active-success"
+                  onMouseEnter={(e) => handleMouseEnterTooltip(e, 'Link selected individuals')}
+                  onMouseLeave={handleMouseLeaveTooltip}
+                >
+                  <span style={{ fontSize: '18px' }}><i className="fa-solid fa-link"></i></span>
+                  <span>Link Cards</span>
+                </button>
+              ) : (
+                <button
+                  disabled={selectedNodeIds.length !== 1}
+                  onClick={() => {
+                    if (selectedNodeId) handleQuickAddSpouse(selectedNodeId);
+                  }}
+                  className={`toolbar-btn ${selectedNodeIds.length === 1 ? 'active-success' : ''}`}
+                  onMouseEnter={(e) => handleMouseEnterTooltip(e, 'Add spouse or partner')}
+                  onMouseLeave={handleMouseLeaveTooltip}
+                >
+                  <span style={{ fontSize: '18px' }}><i className="fa-solid fa-heart"></i></span>
+                  <span>+ Spouse</span>
+                </button>
+              )}
+
+              <button
+                disabled={selectedNodeIds.length !== 1}
+                onClick={() => {
+                  if (selectedNodeId) handleQuickAddParent(selectedNodeId);
+                }}
+                className={`toolbar-btn ${selectedNodeIds.length === 1 ? 'active-primary' : ''}`}
+                onMouseEnter={(e) => handleMouseEnterTooltip(e, 'Add biological parents')}
+                onMouseLeave={handleMouseLeaveTooltip}
+              >
+                <span style={{ fontSize: '18px' }}><i className="fa-solid fa-people-roof"></i></span>
+                <span>+ Parents</span>
+              </button>
+
+              <button
+                disabled={selectedNodeIds.length !== 1}
+                onClick={() => {
+                  if (selectedNodeId) handleQuickAddChild(selectedNodeId);
+                }}
+                className={`toolbar-btn ${selectedNodeIds.length === 1 ? 'active-purple' : ''}`}
+                onMouseEnter={(e) => handleMouseEnterTooltip(e, 'Add child')}
+                onMouseLeave={handleMouseLeaveTooltip}
+              >
+                <span style={{ fontSize: '18px' }}><i className="fa-solid fa-baby"></i></span>
+                <span>+ Child</span>
+              </button>
+
+              <button
+                disabled={selectedNodeIds.length !== 1}
+                onClick={() => {
+                  if (selectedNodeId) handleQuickAddSibling(selectedNodeId);
+                }}
+                className={`toolbar-btn ${selectedNodeIds.length === 1 ? 'active-orange' : ''}`}
+                onMouseEnter={(e) => handleMouseEnterTooltip(e, 'Add sibling')}
+                onMouseLeave={handleMouseLeaveTooltip}
+              >
+                <span style={{ fontSize: '18px' }}><i className="fa-solid fa-users"></i></span>
+                <span>+ Sibling</span>
+              </button>
+
+              <button
+                disabled={selectedNodeIds.length !== 1}
+                onClick={() => {
+                  if (selectedNodeId) {
+                    setRelationMode({ sourceId: selectedNodeId, actionType: 'SOCIAL' });
+                    setSocialTargetId('');
+                    setSocialType('FRIEND');
+                  }
+                }}
+                className={`toolbar-btn ${selectedNodeIds.length === 1 ? 'active-primary' : ''}`}
+                onMouseEnter={(e) => handleMouseEnterTooltip(e, 'Connect social relationship line')}
+                onMouseLeave={handleMouseLeaveTooltip}
+              >
+                <span style={{ fontSize: '18px' }}><i className="fa-solid fa-link"></i></span>
+                <span>Social</span>
+              </button>
+
+              {selectedNodeIds.length > 0 && (
+                <>
+                  <div className="toolbar-divider" />
+                  <button
+                    onClick={() => {
+                      setSelectedNodeIds([]);
+                      setSelectedNodeId(null);
+                      setIsDrawerOpen(false);
+                      setOpenRadialNodeId(null);
+                    }}
+                    className="toolbar-btn active-orange"
+                    onMouseEnter={(e) => handleMouseEnterTooltip(e, 'Clear active selection')}
+                    onMouseLeave={handleMouseLeaveTooltip}
+                  >
+                    <span style={{ fontSize: '18px' }}><i className="fa-solid fa-square-minus"></i></span>
+                    <span>Clear</span>
+                  </button>
+                </>
+              )}
+
+              <div className="toolbar-divider" />
+
+              <button
+                disabled={selectedNodeIds.length === 0}
+                onClick={handleDeleteSelectedNodes}
+                className={`toolbar-btn ${selectedNodeIds.length > 0 ? 'active-danger' : ''}`}
+                onMouseEnter={(e) => handleMouseEnterTooltip(e, 'Delete selected individuals')}
+                onMouseLeave={handleMouseLeaveTooltip}
+              >
+                <span style={{ fontSize: '18px' }}><i className="fa-solid fa-trash-can"></i></span>
+                <span>Delete</span>
+              </button>
+            </>
+          )}
         </div>
       )}
+      {/* 11. Premium Custom Alt Modal Tooltip */}
+      <AnimatePresence>
+        {tooltip && (
+          <motion.div
+            initial={{ opacity: 0, scale: 0.9, y: 5 }}
+            animate={{ opacity: 1, scale: 1, y: 0 }}
+            exit={{ opacity: 0, scale: 0.9, y: 5 }}
+            transition={tooltipTransition}
+            style={{
+              position: 'fixed',
+              left: tooltipX,
+              top: tooltipY,
+              transform: 'translate(-50%, -100%)',
+              background: '#21252B',
+              border: '1px solid rgba(171, 178, 191, 0.25)',
+              color: '#ABB2BF',
+              padding: '6px 12px',
+              borderRadius: '6px',
+              fontSize: '11px',
+              fontWeight: 'bold',
+              whiteSpace: 'nowrap',
+              zIndex: 100000,
+              pointerEvents: 'none',
+              boxShadow: '0 8px 24px rgba(0, 0, 0, 0.5)'
+            }}
+          >
+            {tooltip.text}
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 };

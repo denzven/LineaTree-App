@@ -167,12 +167,13 @@ export function exportTreeToSvgString(
     }
   });
 
-  // 2. Draw Children Links (Biological / Adoptive / Foster drop downs)
+  // 2. Draw Children Links (Biological / Adoptive / Foster / Step drop downs)
   const childEdges = edges.filter(
     (e) =>
       e.type === 'BIOLOGICAL_PARENT' ||
       e.type === 'ADOPTIVE_PARENT' ||
-      e.type === 'FOSTER_PARENT'
+      e.type === 'FOSTER_PARENT' ||
+      e.type === 'STEP_PARENT'
   );
 
   // Group child edges by source parent pair to make clean dropdown splits
@@ -192,6 +193,9 @@ export function exportTreeToSvgString(
     } else if (edge.type === 'FOSTER_PARENT') {
       strokeDash = '2,3';
       strokeColor = tokens.warning;
+    } else if (edge.type === 'STEP_PARENT') {
+      strokeDash = '6,2';
+      strokeColor = tokens.success;
     }
 
     // Step 1: drop from parent to mid Y

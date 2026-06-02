@@ -28,7 +28,8 @@ export function computeLayout(
     (e) =>
       e.type === 'BIOLOGICAL_PARENT' ||
       e.type === 'ADOPTIVE_PARENT' ||
-      e.type === 'FOSTER_PARENT'
+      e.type === 'FOSTER_PARENT' ||
+      e.type === 'STEP_PARENT'
   );
 
   // Relax levels iteratively (bellman-ford style, max depth 20 to prevent cycles)
@@ -142,21 +143,28 @@ export function computeLayout(
         const nodeB = group[1];
 
         const xA = nodeA.x !== undefined ? nodeA.x : currentX;
-        const yA = nodeA.y !== undefined ? nodeA.y : yPos;
-
         const xB = nodeB.x !== undefined ? nodeB.x : currentX + nodeHorizontalGap;
-        const yB = nodeB.y !== undefined ? nodeB.y : yPos;
+
+        // Force spouses to share the same Y position to avoid vertical misalignment.
+        let yComm = yPos;
+        if (nodeA.y !== undefined && nodeB.y !== undefined) {
+          yComm = (nodeA.y + nodeB.y) / 2;
+        } else if (nodeA.y !== undefined) {
+          yComm = nodeA.y;
+        } else if (nodeB.y !== undefined) {
+          yComm = nodeB.y;
+        }
 
         positionedNodes.push({
           ...nodeA,
           x: xA,
-          y: yA,
+          y: yComm,
         });
 
         positionedNodes.push({
           ...nodeB,
           x: xB,
-          y: yB,
+          y: yComm,
         });
 
         currentX += nodeHorizontalGap + coupleHorizontalGap;
