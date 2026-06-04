@@ -1740,3 +1740,250 @@ input[type="range"]::-webkit-slider-thumb:hover {
   transform: translate(8px, 45px) scale(1.2);
 }
 
+/* ==========================================
+   PWA INSTALLATION MODAL & TABS
+   ========================================== */
+
+.install-app-icon {
+  width: 56px;
+  height: 56px;
+  border-radius: 14px;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4), 0 0 12px rgba(97, 175, 239, 0.25);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  display: block;
+}
+
+.install-modal-header-desc {
+  font-size: 11px;
+  color: var(--text-muted);
+  margin-top: 4px;
+  line-height: 1.4;
+}
+
+.install-tabs {
+  display: flex;
+  gap: 8px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  padding-bottom: 10px;
+  margin-top: 4px;
+}
+
+.install-tab-btn {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 10px 8px;
+  border-radius: 10px;
+  border: 1px solid transparent;
+  background: rgba(255, 255, 255, 0.02);
+  color: var(--text-muted);
+  font-weight: 700;
+  font-size: 11px;
+  cursor: pointer;
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.install-tab-btn:hover {
+  background: rgba(255, 255, 255, 0.06);
+  color: var(--text-primary);
+}
+
+.install-tab-btn.active.ios {
+  background: rgba(97, 175, 239, 0.12);
+  border-color: rgba(97, 175, 239, 0.35);
+  color: var(--color-primary);
+}
+
+.install-tab-btn.active.android {
+  background: rgba(152, 195, 121, 0.12);
+  border-color: rgba(152, 195, 121, 0.35);
+  color: var(--color-success);
+}
+
+.install-tab-btn.active.desktop {
+  background: rgba(86, 182, 194, 0.12);
+  border-color: rgba(86, 182, 194, 0.35);
+  color: var(--color-alternative);
+}
+
+.install-steps {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  margin: 16px 0;
+  text-align: left;
+}
+
+.install-step {
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--text-primary);
+}
+
+.install-step-num {
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.08);
+  color: var(--text-muted);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 800;
+  font-size: 10px;
+  flex-shrink: 0;
+  border: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.install-step-text {
+  flex: 1;
+}
+
+.install-step-text strong {
+  color: var(--text-primary);
+}
+
+.install-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  padding: 2px 6px;
+  border-radius: 6px;
+  font-size: 10px;
+  font-weight: 700;
+  color: var(--color-alternative);
+}
+
+/* ==========================================
+   ANDROID NATIVE INSTALL CTA CARD
+   ========================================== */
+
+.android-install-cta {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 16px;
+  background: linear-gradient(135deg, rgba(152, 195, 121, 0.08) 0%, rgba(86, 182, 194, 0.06) 100%);
+  border: 1px solid rgba(152, 195, 121, 0.25);
+  border-radius: 16px;
+  padding: 20px 18px;
+  margin: 12px 0;
+  text-align: center;
+  position: relative;
+  overflow: hidden;
+}
+
+.android-install-cta::before {
+  content: '';
+  position: absolute;
+  top: -30px;
+  right: -30px;
+  width: 100px;
+  height: 100px;
+  background: radial-gradient(circle, rgba(152, 195, 121, 0.15) 0%, transparent 70%);
+  pointer-events: none;
+}
+
+.android-install-cta-icon {
+  width: 52px;
+  height: 52px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, rgba(152, 195, 121, 0.2), rgba(86, 182, 194, 0.2));
+  border: 2px solid rgba(152, 195, 121, 0.4);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 24px;
+  color: #98C379;
+  box-shadow: 0 0 20px rgba(152, 195, 121, 0.25);
+  flex-shrink: 0;
+}
+
+.android-install-cta-body {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.android-install-cta-title {
+  font-size: 14px;
+  font-weight: 800;
+  color: #98C379;
+  letter-spacing: 0.04em;
+  margin: 0;
+}
+
+.android-install-cta-desc {
+  font-size: 11px;
+  color: rgba(171, 178, 191, 0.7);
+  line-height: 1.5;
+  margin: 0;
+}
+
+.android-install-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  width: 100%;
+  padding: 14px 20px;
+  border-radius: 12px;
+  border: none;
+  background: linear-gradient(135deg, #98C379 0%, #7cb85e 100%);
+  color: #1E222B;
+  font-size: 13px;
+  font-weight: 900;
+  letter-spacing: 0.05em;
+  cursor: pointer;
+  box-shadow: 0 6px 20px rgba(152, 195, 121, 0.4), 0 2px 8px rgba(0, 0, 0, 0.3);
+  transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+  animation: install-btn-glow 2.5s ease-in-out infinite;
+}
+
+.android-install-btn:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 10px 28px rgba(152, 195, 121, 0.55), 0 4px 12px rgba(0, 0, 0, 0.35);
+  background: linear-gradient(135deg, #a8d389 0%, #88c46e 100%);
+}
+
+.android-install-btn:active {
+  transform: translateY(0px) scale(0.98);
+  box-shadow: 0 4px 12px rgba(152, 195, 121, 0.3);
+}
+
+@keyframes install-btn-glow {
+  0%, 100% { box-shadow: 0 6px 20px rgba(152, 195, 121, 0.4), 0 2px 8px rgba(0, 0, 0, 0.3); }
+  50% { box-shadow: 0 6px 28px rgba(152, 195, 121, 0.65), 0 2px 8px rgba(0, 0, 0, 0.3); }
+}
+
+.install-fallback-note {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  background: rgba(229, 192, 123, 0.08);
+  border: 1px solid rgba(229, 192, 123, 0.2);
+  border-radius: 10px;
+  padding: 10px 12px;
+  font-size: 11px;
+  color: rgba(229, 192, 123, 0.85);
+  line-height: 1.5;
+  margin-bottom: 4px;
+}
+
+.install-fallback-note i {
+  margin-top: 1px;
+  flex-shrink: 0;
+  color: #E5C07B;
+}
+
+.install-fallback-note strong {
+  color: #E5C07B;
+}

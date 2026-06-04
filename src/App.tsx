@@ -15,11 +15,9 @@ function App() {
   
   // PWA Installer states
   const [deferredPrompt, setDeferredPrompt] = useState<any>(null);
-  const [isInstallable, setIsInstallable] = useState(false);
-  
-  // iOS Safari PWA support
-  const [isIOS, setIsIOS] = useState(false);
-  const [showIOSInstallModal, setShowIOSInstallModal] = useState(false);
+  const [isStandalone, setIsStandalone] = useState(false);
+  const [showInstallModal, setShowInstallModal] = useState(false);
+  const [activePlatform, setActivePlatform] = useState<'ios' | 'android' | 'desktop'>('ios');
 
   // Chromium checker state
   const [showChromiumModal, setShowChromiumModal] = useState(false);
@@ -93,32 +91,64 @@ function App() {
     };
   }, []);
 
+  // Detect if already installed/standalone
+  useEffect(() => {
+    const checkStandalone = () => {
+      const standalone = window.matchMedia('(display-mode: standalone)').matches || 
+                         (navigator as any).standalone || 
+                         document.referrer.includes('android-app://');
+      setIsStandalone(!!standalone);
+    };
+
+    checkStandalone();
+
+    // Listen for display-mode changes
+    const mediaQuery = window.matchMedia('(display-mode: standalone)');
+    const listener = (e: MediaQueryListEvent) => {
+      setIsStandalone(e.matches);
+    };
+
+    if (mediaQuery.addEventListener) {
+      mediaQuery.addEventListener('change', listener);
+    } else {
+      mediaQuery.addListener(listener);
+    }
+
+    return () => {
+      if (mediaQuery.removeEventListener) {
+        mediaQuery.removeEventListener('change', listener);
+      } else {
+        mediaQuery.removeListener(listener);
+      }
+    };
+  }, []);
+
   // Capture PWA installation trigger prompt (Chrome/Android/PC/Firefox Mobile)
   useEffect(() => {
     const handler = (e: Event) => {
       e.preventDefault();
       setDeferredPrompt(e);
-      setIsInstallable(true);
     };
     window.addEventListener('beforeinstallprompt', handler);
-
-    // Detect if already installed/standalone
-    const isStandalone = window.matchMedia('(display-mode: standalone)').matches || (navigator as any).standalone;
-    if (isStandalone) {
-      setIsInstallable(false);
-      setIsIOS(false);
-    } else {
-      // Check if iOS Apple device specifically (which doesn't support beforeinstallprompt)
-      const isIOSDevice = /iPad|iPhone|iPod/.test(navigator.userAgent) && !(window as any).MSStream;
-      if (isIOSDevice) {
-        setIsIOS(true);
-      }
-    }
 
     return () => {
       window.removeEventListener('beforeinstallprompt', handler);
     };
   }, []);
+
+  // Auto-detect operating system when opening the install modal
+  useEffect(() => {
+    if (showInstallModal) {
+      const ua = navigator.userAgent.toLowerCase();
+      if (/ipad|iphone|ipod/.test(ua) && !(window as any).MSStream) {
+        setActivePlatform('ios');
+      } else if (/android/.test(ua)) {
+        setActivePlatform('android');
+      } else {
+        setActivePlatform('desktop');
+      }
+    }
+  }, [showInstallModal]);
 
   // Check for Chromium-based browser
   useEffect(() => {
@@ -137,18 +167,29 @@ function App() {
   }, []);
 
   const handleInstallPWA = async () => {
-    if (isIOS) {
-      // For iOS Safari, show step-by-step glassmorphic guide modal
-      setShowIOSInstallModal(true);
+    // On Android with a captured prompt, just fire it directly — no modal needed
+    const ua = navigator.userAgent.toLowerCase();
+    const isAndroid = /android/.test(ua);
+    if (deferredPrompt && isAndroid) {
+      deferredPrompt.prompt();
+      const { outcome } = await deferredPrompt.userChoice;
+      if (outcome === 'accepted') {
+        setDeferredPrompt(null);
+      }
       return;
     }
-    
-    if (!deferredPrompt) return;
-    deferredPrompt.prompt();
-    const { outcome } = await deferredPrompt.userChoice;
-    if (outcome === 'accepted') {
-      setIsInstallable(false);
-      setDeferredPrompt(null);
+    // Otherwise open the install guide modal (with or without prompt available)
+    setShowInstallModal(true);
+  };
+
+  const handleDirectInstall = async () => {
+    if (deferredPrompt) {
+      deferredPrompt.prompt();
+      const { outcome } = await deferredPrompt.userChoice;
+      if (outcome === 'accepted') {
+        setDeferredPrompt(null);
+        setShowInstallModal(false);
+      }
     }
   };
 
@@ -163,7 +204,7 @@ function App() {
     setTemplateToPreview(undefined);
   };
 
-  const appIsInstallable = isInstallable || isIOS;
+  const appIsInstallable = !isStandalone;
 
   return (
     <div className="w-screen h-screen overflow-hidden bg-[#282C34] text-[#ABB2BF] relative">
@@ -340,9 +381,9 @@ function App() {
         )}
       </AnimatePresence>
 
-      {/* 4. iOS Safari PWA Installation Step-by-Step Guide Modal */}
+      {/* 4. Refined PWA Installation Step-by-Step Guide Modal */}
       <AnimatePresence>
-        {showIOSInstallModal && (
+        {showInstallModal && (
           <div className="modal-overlay" style={{ zIndex: 10000 }}>
             <motion.div
               initial={{ scale: 0.95, opacity: 0 }}
@@ -350,43 +391,214 @@ function App() {
               exit={{ scale: 0.95, opacity: 0 }}
               className="modal-content"
               style={{
-                maxWidth: '420px',
-                border: '1px solid rgba(97, 175, 239, 0.3)',
-                boxShadow: '0 0 24px rgba(97, 175, 239, 0.15)'
+                maxWidth: '440px',
+                border: activePlatform === 'ios'
+                  ? '1px solid rgba(97, 175, 239, 0.3)'
+                  : activePlatform === 'android'
+                  ? '1px solid rgba(152, 195, 121, 0.3)'
+                  : '1px solid rgba(86, 182, 194, 0.3)',
+                boxShadow: activePlatform === 'ios'
+                  ? '0 0 24px rgba(97, 175, 239, 0.15)'
+                  : activePlatform === 'android'
+                  ? '0 0 24px rgba(152, 195, 121, 0.15)'
+                  : '0 0 24px rgba(86, 182, 194, 0.15)'
               }}
             >
-              <div className="modal-header">
-                <h3 className="modal-title" style={{ color: '#61AFEF', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                  <i className="fa-solid fa-mobile-screen-button"></i> iOS Installation Guide
-                </h3>
+              <div className="modal-header" style={{ borderBottom: 'none', paddingBottom: 0 }}>
+                <div style={{ display: 'flex', gap: '16px', alignItems: 'center' }}>
+                  <img
+                    src="pwa-192x192.png"
+                    alt="LineaTree Icon"
+                    className="install-app-icon"
+                    onError={(e) => {
+                      e.currentTarget.src = './pwa-192x192.png';
+                    }}
+                  />
+                  <div style={{ textAlign: 'left' }}>
+                    <h3 className="modal-title" style={{
+                      color: activePlatform === 'ios'
+                        ? '#61AFEF'
+                        : activePlatform === 'android'
+                        ? '#98C379'
+                        : '#56B6C2',
+                      fontSize: '16px',
+                      fontWeight: '800'
+                    }}>
+                      Install LineaTree
+                    </h3>
+                    <p className="install-modal-header-desc">
+                      Add to your home screen to run offline as a standalone application.
+                    </p>
+                  </div>
+                </div>
                 <button
-                  onClick={() => setShowIOSInstallModal(false)}
+                  onClick={() => setShowInstallModal(false)}
                   className="modal-btn-close"
+                  style={{ alignSelf: 'flex-start', fontSize: '18px' }}
                 >
                   ×
                 </button>
               </div>
 
-              <div style={{ margin: '16px 0', fontSize: '13px', color: '#ABB2BF', lineHeight: 1.6, textAlign: 'left' }}>
-                To install **LineaTree** on your iPhone or iPad, follow these simple Safari steps:
-                <br /><br />
-                1. Tap the **Share** icon at the bottom of the screen <span style={{ background: 'rgba(255,255,255,0.08)', padding: '2px 6px', borderRadius: '4px' }}>[⎋]</span>.
-                <br />
-                2. Scroll down the menu and select **'Add to Home Screen'** <span style={{ background: 'rgba(255,255,255,0.08)', padding: '2px 6px', borderRadius: '4px' }}>[+]</span>.
-                <br />
-                3. Tap **'Add'** in the top right corner.
-                <br /><br />
-                The app will appear as a desktop launcher card on your screen and run entirely offline with dedicated database stability!
+              {/* OS Selector Tabs */}
+              <div className="install-tabs">
+                <button
+                  className={`install-tab-btn ios ${activePlatform === 'ios' ? 'active' : ''}`}
+                  onClick={() => setActivePlatform('ios')}
+                >
+                  <i className="fa-brands fa-apple"></i> iOS Safari
+                </button>
+                <button
+                  className={`install-tab-btn android ${activePlatform === 'android' ? 'active' : ''}`}
+                  onClick={() => setActivePlatform('android')}
+                >
+                  <i className="fa-brands fa-android"></i> Android
+                </button>
+                <button
+                  className={`install-tab-btn desktop ${activePlatform === 'desktop' ? 'active' : ''}`}
+                  onClick={() => setActivePlatform('desktop')}
+                >
+                  <i className="fa-solid fa-laptop"></i> Desktop
+                </button>
               </div>
 
-              <div className="modal-actions" style={{ marginTop: '20px' }}>
-                <button
-                  onClick={() => setShowIOSInstallModal(false)}
-                  className="btn-confirm"
-                  style={{ background: '#61AFEF', color: '#1E222B', fontWeight: 'bold', width: '100%', justifyContent: 'center', padding: '12px' }}
-                >
-                  Got It, Thanks!
-                </button>
+              {/* Steps Area */}
+              <div className="install-steps">
+                {activePlatform === 'ios' && (
+                  <>
+                    <div className="install-step">
+                      <div className="install-step-num">1</div>
+                      <div className="install-step-text">
+                        Tap the <strong>Share</strong> button <span className="install-badge"><i className="fa-solid fa-share-from-square"></i> Share</span> in Safari's navigation bar.
+                      </div>
+                    </div>
+                    <div className="install-step">
+                      <div className="install-step-num">2</div>
+                      <div className="install-step-text">
+                        Scroll down the options list and select <strong>Add to Home Screen</strong> <span className="install-badge"><i className="fa-solid fa-square-plus"></i> Add</span>.
+                      </div>
+                    </div>
+                    <div className="install-step">
+                      <div className="install-step-num">3</div>
+                      <div className="install-step-text">
+                        Tap <strong>Add</strong> in the top-right corner of the confirmation screen.
+                      </div>
+                    </div>
+                  </>
+                )}
+
+                {activePlatform === 'android' && (
+                  <>
+                    {deferredPrompt ? (
+                      /* Native install prompt is available — show a one-tap install CTA */
+                      <div className="android-install-cta">
+                        <div className="android-install-cta-icon">
+                          <i className="fa-brands fa-android"></i>
+                        </div>
+                        <div className="android-install-cta-body">
+                          <p className="android-install-cta-title">Ready to Install</p>
+                          <p className="android-install-cta-desc">
+                            LineaTree will be added to your home screen and run fully offline — just like a native app.
+                          </p>
+                        </div>
+                        <button
+                          className="android-install-btn"
+                          onClick={handleDirectInstall}
+                        >
+                          <i className="fa-solid fa-arrow-down-to-bracket"></i>
+                          Install App
+                        </button>
+                      </div>
+                    ) : (
+                      /* Prompt not available — show manual fallback steps */
+                      <>
+                        <div className="install-fallback-note">
+                          <i className="fa-solid fa-circle-info"></i>
+                          Open this page in <strong>Chrome for Android</strong> for a one-tap install experience.
+                        </div>
+                        <div className="install-step">
+                          <div className="install-step-num">1</div>
+                          <div className="install-step-text">
+                            Open the browser menu <span className="install-badge"><i className="fa-solid fa-ellipsis-vertical"></i> Menu</span> (three dots, top-right).
+                          </div>
+                        </div>
+                        <div className="install-step">
+                          <div className="install-step-num">2</div>
+                          <div className="install-step-text">
+                            Select <strong>Install App</strong> or <strong>Add to Home screen</strong> <span className="install-badge"><i className="fa-solid fa-arrow-down-to-bracket"></i> Install</span>.
+                          </div>
+                        </div>
+                        <div className="install-step">
+                          <div className="install-step-num">3</div>
+                          <div className="install-step-text">
+                            Confirm the installation prompt when prompted by your system.
+                          </div>
+                        </div>
+                      </>
+                    )}
+                  </>
+                )}
+
+                {activePlatform === 'desktop' && (
+                  <>
+                    <div className="install-step">
+                      <div className="install-step-num">1</div>
+                      <div className="install-step-text">
+                        Click the <strong>Install Icon</strong> <span className="install-badge"><i className="fa-solid fa-download"></i> Install</span> in the browser address bar (top right).
+                      </div>
+                    </div>
+                    <div className="install-step">
+                      <div className="install-step-num">2</div>
+                      <div className="install-step-text">
+                        Or open the browser menu <span className="install-badge"><i className="fa-solid fa-ellipsis-vertical"></i> Menu</span> and select <strong>Save and share</strong> &gt; <strong>Install LineaTree</strong>.
+                      </div>
+                    </div>
+                    <div className="install-step">
+                      <div className="install-step-num">3</div>
+                      <div className="install-step-text">
+                        Confirm the installation dialog to launch LineaTree in its own window.
+                      </div>
+                    </div>
+                  </>
+                )}
+              </div>
+
+              <div className="modal-actions" style={{ marginTop: '8px', gap: '8px' }}>
+                {/* On Android with prompt: the CTA button above handles install; show only a dismiss link */}
+                {activePlatform === 'android' && deferredPrompt ? (
+                  <button
+                    onClick={() => setShowInstallModal(false)}
+                    className="btn-cancel"
+                    style={{ width: '100%', justifyContent: 'center', padding: '10px', fontSize: '12px' }}
+                  >
+                    Maybe Later
+                  </button>
+                ) : (
+                  <button
+                    onClick={() => setShowInstallModal(false)}
+                    className="btn-confirm"
+                    style={{
+                      background: activePlatform === 'ios'
+                        ? '#61AFEF'
+                        : activePlatform === 'android'
+                        ? '#98C379'
+                        : '#56B6C2',
+                      color: '#1E222B',
+                      fontWeight: 'bold',
+                      width: '100%',
+                      justifyContent: 'center',
+                      padding: '12px',
+                      boxShadow: activePlatform === 'ios'
+                        ? '0 4px 12px rgba(97, 175, 239, 0.25)'
+                        : activePlatform === 'android'
+                        ? '0 4px 12px rgba(152, 195, 121, 0.25)'
+                        : '0 4px 12px rgba(86, 182, 194, 0.25)',
+                      transition: 'all 0.2s ease'
+                    }}
+                  >
+                    Got It, Thanks!
+                  </button>
+                )}
               </div>
             </motion.div>
           </div>

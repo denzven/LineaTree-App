@@ -23,6 +23,8 @@ export default defineConfig({
         background_color: '#282C34',
         display: 'standalone',
         orientation: 'any',
+        start_url: '/LineaTree-App/',
+        scope: '/LineaTree-App/',
         icons: [
           { src: 'pwa-192x192.png', sizes: '192x192', type: 'image/png' },
           { src: 'pwa-512x512.png', sizes: '512x512', type: 'image/png', purpose: 'any maskable' }
@@ -37,6 +39,9 @@ export default defineConfig({
             options: { cacheName: 'google-fonts-cache', expiration: { maxEntries: 10 } }
           }
         ]
+      },
+      devOptions: {
+        enabled: true
       }
     })
   ]
